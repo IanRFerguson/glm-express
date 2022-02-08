@@ -1,3 +1,5 @@
 
 .DS_Store
 name_ideas.md
+dev/
+.ipynb_checkpoints/
