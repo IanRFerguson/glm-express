@@ -1,5 +1,6 @@
-
 .DS_Store
 name_ideas.md
 dev/
+bids/
 .ipynb_checkpoints/
+*.pyc
