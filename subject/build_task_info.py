@@ -27,7 +27,6 @@ def build_task_info(bids_root):
             
             output[task]['condition_identifier'] = 'trial_type'
             output[task]['confound_regressors'] = []
-            output[task]['auxilary_regressors'] = []
             output[task]['modulators'] = []
 
             output[task]['block_identifier'] = None
