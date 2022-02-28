@@ -24,7 +24,6 @@ Glossary of keys in the `task_information` file; manipulating these can dramatic
 * `excludes`: Subjects in your project you need to exclude for a given task
 * `condition_identifier`: Column in your events file that denotes trial type; **NOTE** this will be changed to `trial_type` in the script
 * `confound_regressors`: Regressors to include from `fmriprep` output
-* `auxilary_regressors`:
 * `modulators`: Parametric modulators to weight trial type (these should be in your events file)
 * `block_identifier`: Column in your events file that denotes block type; defaults to `null`
 * `design-contrasts`: Your defined contrasts! Include as few or as many as you see fit
