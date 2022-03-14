@@ -31,7 +31,7 @@ def build_task_info(bids_root):
 
             output[task]['block_identifier'] = None
             
-            output[task]['design-contrasts'] = 'default'
+            output[task]['design_contrasts'] = 'default'
             output[task]['group_level_regressors'] = []
 
             output[task] = {k:v for k,v in sorted(output[task].items())} 
