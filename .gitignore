@@ -2,5 +2,8 @@
 name_ideas.md
 dev/
 bids/
+bids_test/
 .ipynb_checkpoints/
 *.pyc
+dont-share.ipynb
+task_information.json
