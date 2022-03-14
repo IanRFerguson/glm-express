@@ -4,6 +4,23 @@
 
 This is a package for modeling functional neuroimaging tasks. As the name implies, it's optimized to be simple and straightforward! The `task_information.json` file stores all of the regressors and modeling specifications for each task; modifying this file allows you to test a range of analytical outcomes.
 
+## Currently
+
+This package comes equipped with two modeling objects:
+
+`Subject` is a first-level modeler for subject-specific functional neuroimaging data
+  
+Click **here** for a demo of the `Subject` object
+
+`GroupLevel` is a second-level modeler that is optimized to aggregate contrast maps derived by the `Subject` object
+
+Click **here** for a demo of the `GroupLevel` object
+
+## In Development
+
+A `RestingState` object is currently in the works, for analyses of subject-level resting state functional connectivity
+
+
 ## Assumptions
 
 We assume the following about your data:
@@ -18,7 +35,7 @@ We assume the following about your data:
 
 ## About `task_information.json`
 
-Glossary of keys in the `task_information` file; manipulating these can dramatically change the specifications of your first-level model
+Glossary of keys in the `task_information` file; manipulating these allow you to quickly and effectively customize your modeling parameters without editing any source code
 
 * `tr`: Repetition time (defined here, but can be overriden for any one subject)
 * `excludes`: Subjects in your project you need to exclude for a given task
@@ -26,4 +43,4 @@ Glossary of keys in the `task_information` file; manipulating these can dramatic
 * `confound_regressors`: Regressors to include from `fmriprep` output
 * `modulators`: Parametric modulators to weight trial type (these should be in your events file)
 * `block_identifier`: Column in your events file that denotes block type; defaults to `null`
-* `design-contrasts`: Your defined contrasts! Include as few or as many as you see fit
+* `design_contrasts`: Your defined contrasts! Include as few or as many as you see fit
