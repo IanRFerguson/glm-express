@@ -25,27 +25,43 @@ import pandas as pd
 import numpy as np
 from tqdm import tqdm
 from time import sleep
+from bids import BIDSLayout
 
 
 # ---- Object definition
 class BIDSPointer:
-      
-      # ---- Class Functions
       def __init__(self, sub_id, task, bids_root='./bids', suppress=False, template_space="MNI152NLin6",
-                  dummy_scans=2, repetition_time=1.):
+                  dummy_scans=0, repetition_time=1.):
+            """
+            BIDSPointer constructor
+            
+            Parameters
+                  sub_id: str or int | Subject ID corresponding to label in BIDS project
+                  task: str | Task name corresponding to label in BIDS project
+                  bids_root: str | Relative path to top of BIDS project directory tree
+                  suppress: Boolean | if True, dictionary of attributes printed at init
+                  template_space: str | Anatomical space derived from fmriprep (defaults to MNI152NLin6)
+                  dummy_scans: int | Number of non-steady state volumes preceding functional runs
+                  repetition_time: int | TR value derived from fMRI scanner
+            """
 
             self.sub_id = sub_id                                                    # Unique subject ID from BIDS project
             self.task = task                                                        # Task name from BIDS project
             self.template_space = template_space                                    # Preprocessed template space
-
-            # If BIDS path doesn't exist this program will crash
-            if os.path.exists(bids_root):
-                  self.bids_root = bids_root
-            else:
-                  raise OSError(f'{bids_root} is invalid path ... your current directory: {os.getcwd()}')
+            self.bids_root = bids_root
 
 
-            # -- BIDS Paths   
+            # === Validate BIDS input ===
+            bids = BIDSLayout(self.bids_root)                                            
+
+            if self.sub_id not in bids.get_subjects():
+                  raise OSError(f'{self.sub_id} not found in BIDS project ... valid: {bids.get_subjects()}')
+
+            if self.task not in bids.get_tasks():
+                  raise OSError(f'{self.task} not found in BIDS project ... valid: {bids.get_tasks()}')
+
+
+            # === BIDS Paths ===  
             self.raw_bold, self.events = self._split_raw_data()                     # Raw (unrprocessed NifTi and Events files)
             self.preprocessed_bold, self.confounds = self._split_derived_data()     # Preprocessed NifTi and confound regressor files
             self.first_level_output = self._output_tree()                           # Relative path for analysis output
@@ -53,7 +69,7 @@ class BIDSPointer:
             self.bids_container = self._build_container()                           # Container to organize all NifTi / events / confounds
 
 
-            # -- User-defined task information
+            # === Object attributes ===
             task_file = self._validate_task_file()                                  # Build task_information.json file if it doesn't exist                             
 
             self.t_r = repetition_time                                              # User-defined repetition time
@@ -62,8 +78,7 @@ class BIDSPointer:
             self.conditions = []                                                    # Conditions list (empty @ __init__)
             self.condition_variable = task_file['condition_identifier']             # 
             self.confound_regressors = task_file['confound_regressors']             # List of confound regressors to include
-            self.auxilary_regressors = task_file['auxilary_regressors']             # List of auxilary regressors to include
-            self.contrasts = task_file['design-contrasts']                          # Dictionary of contrasts to compute
+            self.contrasts = task_file['design_contrasts']                          # Dictionary of contrasts to compute
 
             # Print subject information at __init__
             if not suppress:
@@ -75,7 +90,8 @@ class BIDSPointer:
                         'Task': self.task,
                         "# of Functional Runs": self.functional_runs,
                         "Output Directory": self.first_level_output,
-                        "Defined Contrasts": self.contrasts}
+                        "Defined Contrasts": self.contrasts,
+                        "Confound Regressors": self.confound_regressors}
 
             return json.dumps(container, indent=4)
 
@@ -96,6 +112,9 @@ class BIDSPointer:
       def set_template_space(self, incoming):
             self.template_space = incoming
 
+
+      def set_confound_regressors(self, incoming):
+            self.confound_regressors = incoming
 
 
       # ---- Ecosystem helpers
@@ -122,10 +141,10 @@ class BIDSPointer:
 
       def _output_tree(self):
             """
-            Builds out subject's directory hierarchy for first level modeling
+            Builds out subject's directory hierarchy for first-level modeling
 
             Returns
-                  Relative path to first level output
+                  Relative path to first-level output
             """
 
             # Base output directory
@@ -173,13 +192,13 @@ class BIDSPointer:
             """
 
             deriv_path = os.path.join(self.bids_root, 'derivatives/fmriprep')
-            iso_path = [path for path in os.listdir(deriv_path) if self.sub_id in path][0]
+            iso_path = [path for path in os.listdir(deriv_path) if self.sub_id in path if ".html" not in path][0]
             rel_path = os.path.join(deriv_path, iso_path, 'func')
 
             bold = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x 
                     if self.template_space in x 
                     if '.nii.gz' in x
-                    if 'preproc_bold' in x]
+                    if 'preproc' in x]
 
             confounds = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x if '.tsv' in x]
 
@@ -239,9 +258,18 @@ class BIDSPointer:
                   
                   key = f'run-{run+1}'
 
-                  current_bold = [x for x in self.preprocessed_bold if key in x][0]
-                  current_event = [x for x in self.events if key in x][0]
-                  current_confound = [x for x in self.confounds if key in x][0]
+                  if len(self.preprocessed_bold) > 1:
+                        current_bold = [x for x in self.preprocessed_bold if key in x][0]
+                        current_event = [x for x in self.events if key in x][0]
+                        current_confound = [x for x in self.confounds if key in x][0]
+
+                  else:
+                        try:
+                              current_bold = [x for x in self.preprocessed_bold][0]
+                        except:
+                              raise ValueError(f'No functional runs identified for task-{self.task} + template-space-{self.template_space}')
+                        current_event = [x for x in self.events][0]
+                        current_confound = [x for x in self.confounds][0]
 
                   container[key]['func'] = current_bold
                   container[key]['event'] = current_event
@@ -250,6 +278,9 @@ class BIDSPointer:
                   container['all_func'].append(current_bold)
                   container['all_events'].append(current_event)
                   container['all_confounds'].append(current_confound)
+
+            with open(f'{self.first_level_output}/sub-{self.sub_id}_task-{self.task}_bids-container.json', 'w') as outgoing:
+                  json.dump(container, outgoing, indent=5)
 
             return container
 
