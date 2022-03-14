@@ -25,8 +25,8 @@ from nilearn.reporting import make_glm_report
 class Subject(BIDSPointer):
 
       # ---- Class functions
-      def __init__(self, sub_id, task, bids_root='./bids', suppress=False, template_space="MNI152NLin6",
-                  repetition_time=1., dummy_scans=2):
+      def __init__(self, sub_id, task, bids_root, suppress=False, template_space="MNI152NLin6",
+                  repetition_time=1., dummy_scans=0):
 
             # Inherits constructor from BIDSPointer
             BIDSPointer.__init__(self, sub_id=sub_id, task=task, bids_root=bids_root, suppress=suppress,
@@ -107,8 +107,8 @@ class Subject(BIDSPointer):
 
 
       # ---- Modeling functions
-      def generate_design_matrix(self, run, non_steady_state=True, include_modulators=False, 
-                                 auto_block_regressors=True, motion_outliers=True, drop_fixation=True):
+      def generate_design_matrix(self, run, non_steady_state=False, include_modulators=False, 
+                                 auto_block_regressors=False, motion_outliers=True, drop_fixation=True):
             """
             Builds a first level design matrix
 
@@ -233,7 +233,7 @@ class Subject(BIDSPointer):
             iso_container = self.bids_container[f'run-{run}']                                   # BIDS container for the current run
             events = pd.read_csv(iso_container['event'], sep='\t')                              # Load events file
             confounds = pd.read_csv(iso_container['confound'], sep='\t')                        # Load fmriprep regressors
-            voi = ['onset', 'duration', 'target', 'trial_type']                                 # Starting variables of interest
+            voi = ['onset', 'duration', 'trial_type']                                           # Starting variables of interest
 
             if auto_block_regressors:
                   if 'block_type' in events.columns:
@@ -269,7 +269,8 @@ class Subject(BIDSPointer):
 
 
             # Set object conditions to match trial types
-            self.set_conditions(set(events['trial_type'].unique()))
+            clean_conditions = list(events['trial_type'].dropna().unique())
+            self.set_conditions(clean_conditions)
 
             # Create baseline Design Matrix with defined parameters
             events = first_level.make_first_level_design_matrix(frame_times, events, hrf_model='spm').reset_index()
@@ -279,12 +280,11 @@ class Subject(BIDSPointer):
                   for matrix in mod_matrices:
                         events = events.merge(matrix, on='index', how='left')
 
-
-            # Default to 2 dummy scans 
+            # We assume there are no dummy scans unless otherwise specified
             try:
                   dummy_value = iso_container['dummy']
             except:
-                  dummy_value = 2
+                  dummy_value = 0
 
             # Base list of confound regressors
             confound_vars = self.confound_regressors.copy()
@@ -305,11 +305,19 @@ class Subject(BIDSPointer):
             events = events.merge(confounds, on='index', how='left')
 
             # We'll ONLY mean impute missing whole-brain motion regressors (FD and DVARS)            
-            for var in ['framewise_displacement', 'dvars']:
-                  try:
-                        events[var].fillna(np.mean(events[var]), inplace=True)
-                  except:
-                        continue
+            for var in events.columns:
+
+                  if 'dvars' in var.lower():
+                        try:
+                              events[var].fillna(np.mean(events[var]), inplace=True)
+                        except:
+                              continue
+                  elif 'framewise' in var.lower():
+                        try:
+                             events[var].fillna(np.mean(events[var]), inplace=True)
+                        except:
+                             continue
+                        
 
             # Rearrange Design Matrix columns
             events = reorder_design_columns(events)
@@ -318,7 +326,7 @@ class Subject(BIDSPointer):
 
 
 
-      def first_level_design(self, non_steady_state=True, include_modulators=False, auto_block_regressors=True,
+      def first_level_design(self, non_steady_state=False, include_modulators=False, auto_block_regressors=False,
                             motion_outliers=True, drop_fixation=True):
             """
             Compiles one design matrix per functional run
@@ -461,7 +469,7 @@ class Subject(BIDSPointer):
 
 
       def run_first_level_glm(self, conditions=True, contrasts=True, smoothing=8., plot_brains=True, user_design_matrices=None,
-                              non_steady_state=True, include_modulators=False, auto_block_regressors=True,
+                              non_steady_state=False, include_modulators=False, auto_block_regressors=False,
                               motion_outliers=True, drop_fixation=True):
 
             """
