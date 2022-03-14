@@ -8,13 +8,13 @@ This is a package for modeling functional neuroimaging tasks. As the name implie
 
 This package comes equipped with two modeling objects:
 
-`Subject` is a first-level modeler for subject-specific functional neuroimaging data
+* `Subject` is a first-level modeler for subject-specific functional neuroimaging data
   
-Click **here** for a demo of the `Subject` object
+  * Click **here** for a demo of the `Subject` object
 
-`GroupLevel` is a second-level modeler that is optimized to aggregate contrast maps derived by the `Subject` object
+* `GroupLevel` is a second-level modeler that is optimized to aggregate contrast maps derived by the `Subject` object
 
-Click **here** for a demo of the `GroupLevel` object
+  * Click **here** for a demo of the `GroupLevel` object
 
 ## In Development
 
