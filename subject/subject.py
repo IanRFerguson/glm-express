@@ -118,7 +118,7 @@ class Subject(BIDSPointer):
                   include_modulators: boolean | if True, Parametric modulators are calculated and included in design matrix
                   auto_block_regressors: boolean | if True, `block_type` and `trial_type` columns are implicitly merged
                   motion_outliers: boolean | if True, all motion outliers are included in design matrix
-                  drop_fixation: boolean | if True, fixation trials are dropped from design matrix
+                  drop_fixation: boolean | if True, fixation trials are dropped from event files
 
             Returns
                   Pandas DataFrame object
@@ -336,7 +336,7 @@ class Subject(BIDSPointer):
                   include_modulators: boolean | if True, Parametric modulators are calculated and included in design matrix
                   auto_block_regressors: boolean | if True, `block_type` and `trial_type` columns are implicitly merged
                   motion_outliers: boolean | if True, all motion outliers are included in design matrix
-                  drop_fixation: boolean | if True, fixation trials are dropped from design matrix
+                  drop_fixation: boolean | if True, fixation trials are dropped from event files
 
             Returns
                   List of Pandas DataFrame objects (one per functional run)
@@ -476,16 +476,16 @@ class Subject(BIDSPointer):
             Instantiates and fits a FirstLevelModel GLM object, compiles condition and contrast z-maps
 
             Parameters
-                  conditions: boolean |
-                  contrasts: boolean |
-                  smoothing: float |
-                  plot_brains: boolean |
-                  user_design_matrices: Defaults to None
-                  non_steady_state: boolean |
-                  include_modulators: boolean |
-                  auto_block_regressors: boolean |
-                  motion_outliers: boolean |
-                  drop_fixation: boolean |
+                  conditions: boolean | if True, condition-wise contrast maps are computed
+                  contrasts: boolean | if True, contrast-wise contrast maps are computed
+                  smoothing: float | Kernel size to apply to contrast maps, default = 8.
+                  plot_brains: boolean | if True, local contrast images are saved to the first level output directory
+                  user_design_matrices: Defaults to None | if supplied, these replace the Object-generated design matrices
+                  non_steady_state: boolean | if True, all non steady state regressors are aggregated as one regressor
+                  include_modulators: boolean | if True, Parametric modulators are calculated and included in design matrix
+                  auto_block_regressors: boolean | if True, `block_type` and `trial_type` columns are implicitly merged
+                  motion_outliers: boolean | if True, all motion outliers are included in design matrix
+                  drop_fixation: boolean | if True, fixation trials are dropped from events file
             """
 
             # === Define DMs and contrasts ===
