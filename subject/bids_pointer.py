@@ -96,7 +96,7 @@ class BIDSPointer:
             return json.dumps(container, indent=4)
 
 
-      # ---- Setter helpers
+      # ---- Setter methods
       def set_tr(self, incoming):
             self.t_r = incoming
 
@@ -172,11 +172,20 @@ class BIDSPointer:
                   Two lists (path to BOLD files, path to Events files)
             """
 
+            # Isolate path to subject data in BIDS project (not preprocessed)
             iso_path = [path for path in os.listdir(self.bids_root) if self.sub_id in path][0]
+            
+            # Path to functional subdirectory
             rel_path = os.path.join(self.bids_root, iso_path, 'func')
 
+            # All files in subject's functional subdirectory
             raw_data = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x]
+            
+            
+            # All NifTi files for the current task
             bold = [x for x in raw_data if '.nii.gz' in x]
+            
+            # All events files for the current task
             events = [x for x in raw_data if '.tsv' in x]
 
             return bold, events
@@ -191,15 +200,23 @@ class BIDSPointer:
                   Two lists (path to BOLD files, path to Confounds files)
             """
 
+            # Path to fmriprep derivatvies
             deriv_path = os.path.join(self.bids_root, 'derivatives/fmriprep')
+            
+            # Isolate path to subject's preprocessed data (excluding the useful HTML files created by fmriprep!)
             iso_path = [path for path in os.listdir(deriv_path) if self.sub_id in path if ".html" not in path][0]
+            
+            # Path to functional subdirectory in preprocessed directory
             rel_path = os.path.join(deriv_path, iso_path, 'func')
 
+            
+            # Preprocessed NifTi's must match template space and given naming conventions
             bold = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x 
                     if self.template_space in x 
                     if '.nii.gz' in x
                     if 'preproc' in x]
 
+            # Confounds derived for each functional run
             confounds = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x if '.tsv' in x]
 
             return bold, confounds
@@ -258,27 +275,44 @@ class BIDSPointer:
                   
                   key = f'run-{run+1}'
 
+                  # Subject has multiple functional runs for the current task
                   if len(self.preprocessed_bold) > 1:
                         current_bold = [x for x in self.preprocessed_bold if key in x][0]
                         current_event = [x for x in self.events if key in x][0]
                         current_confound = [x for x in self.confounds if key in x][0]
 
+                  # Subject has a single functional run for the current task
                   else:
                         try:
                               current_bold = [x for x in self.preprocessed_bold][0]
+
+                        # Raise error if no functional runs are found - we assume this to be erroneous
                         except:
                               raise ValueError(f'No functional runs identified for task-{self.task} + template-space-{self.template_space}')
+                        
+                        
+                        #
                         current_event = [x for x in self.events][0]
                         current_confound = [x for x in self.confounds][0]
 
+                  """
+                  Philosophy of this step ...
+
+                  * We'll have run-wise keys (e.g., run-1, run-2, etc.) that will store relative paths to preprocessed BOLD maps, events, and confounds
+                  * We'll additionally have format-wise keys (e.g., all_functional, all_events, all_confounds)
+                  """
+
+                  # Populate run-wise keys
                   container[key]['func'] = current_bold
                   container[key]['event'] = current_event
                   container[key]['confound'] = current_confound
 
+                  # Append to format-wise keys
                   container['all_func'].append(current_bold)
                   container['all_events'].append(current_event)
                   container['all_confounds'].append(current_confound)
 
+            # Save local BIDS container in subject's first-level-output directory
             with open(f'{self.first_level_output}/sub-{self.sub_id}_task-{self.task}_bids-container.json', 'w') as outgoing:
                   json.dump(container, outgoing, indent=5)
 
