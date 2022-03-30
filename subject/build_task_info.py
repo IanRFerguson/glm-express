@@ -66,7 +66,6 @@ def build_task_info(bids_root):
 
 
 if __name__ == "__main__":
-
       try:
             root = sys.argv[1]
       except:
