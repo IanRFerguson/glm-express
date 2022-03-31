@@ -19,6 +19,7 @@ Usage Notes
 """
 
 # ---- Imports
+from typing import Type
 from .build_task_info import build_task_info
 import os, json, pathlib, sys, warnings
 import pandas as pd
@@ -106,6 +107,8 @@ class BIDSPointer:
 
 
       def set_conditions(self, incoming):
+            if not type(incoming) == list:
+                  raise TypeError('Provide this function with a list of condition trial types from your events file')
             self.conditions = incoming
 
 
@@ -114,7 +117,16 @@ class BIDSPointer:
 
 
       def set_confound_regressors(self, incoming):
+            if not type(incoming) == list:
+                  raise TypeError('Provide this function with a list of regressors derived from fmriprep')
             self.confound_regressors = incoming
+
+
+      def set_design_contrasts(self, incoming):
+            if not type(incoming) == dict:
+                  raise TypeError('Design contrasts need to be a dictionary in {"labeled_name": "column1 - column2" format')
+
+            self.contrasts = incoming
 
 
       # ---- Ecosystem helpers
@@ -332,10 +344,15 @@ class BIDSPointer:
             """
             
             if run != 'ALL':
-                  # Isolate event file from all events
-                  iso_event = [x for x in self.bids_container['all_events'] if f'run-{run}' in x]
 
-                  # Read in event as Pandas DataFrame
+                  # Isolate event file from all events if there are multiple runs
+                  iso_event = [x for x in self.bids_container['all_events'] if f'run-{run}' in x]
+                  
+                  if len(iso_event) == 0:
+                        # Isolate event file from all events if there is one run
+                        iso_event = [x for x in self.bids_container['all_events']]
+                        
+                  # Read in Event file as Pandas DataFrame      
                   temp_event = pd.read_csv(iso_event[0], sep='\t')
 
                   # Add run column if it doesn't exist
@@ -385,6 +402,9 @@ class BIDSPointer:
             if run != 'ALL':
                   # Isolate confounds TSV file
                   iso_confound = [x for x in self.bids_container['all_confounds'] if f'run-{run}' in x]
+
+                  if len(iso_confound) == 0:
+                        iso_confound = [x for x in self.bids_container['all_confounds']]
 
                   # Read file as Pandas DataFrame
                   temp_confound = pd.read_csv(iso_confound[0], sep='\t')
