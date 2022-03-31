@@ -10,3 +10,4 @@ warnings.simplefilter(action='ignore', category=UserWarning)
 
 from subject.subject import Subject
 from group_level.group import GroupLevel
+from aggregator.aggregator import Aggregator
