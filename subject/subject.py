@@ -25,7 +25,7 @@ from nilearn.reporting import make_glm_report
 class Subject(BIDSPointer):
 
       # ---- Class functions
-      def __init__(self, sub_id, task, bids_root, suppress=False, template_space="MNI152NLin6",
+      def __init__(self, sub_id, task, bids_root, suppress=False, template_space="MNI152NLin2009",
                   repetition_time=1., dummy_scans=0):
 
             # Inherits constructor from BIDSPointer
