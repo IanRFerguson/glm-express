@@ -327,7 +327,7 @@ class Subject(BIDSPointer):
 
 
       def first_level_design(self, non_steady_state=False, include_modulators=False, auto_block_regressors=False,
-                            motion_outliers=True, drop_fixation=True):
+                            motion_outliers=True, drop_fixation=True, verbose=True):
             """
             Compiles one design matrix per functional run
 
@@ -352,8 +352,9 @@ class Subject(BIDSPointer):
             Fixation trials:\t\t\t{drop_fixation}
             \n\n
             """
-
-            print(model_specs)
+            
+            if verbose:
+                  print(model_specs)
             sleep(1)
 
             # Empty list to append into
@@ -470,7 +471,7 @@ class Subject(BIDSPointer):
 
       def run_first_level_glm(self, conditions=True, contrasts=True, smoothing=8., plot_brains=True, user_design_matrices=None,
                               non_steady_state=False, include_modulators=False, auto_block_regressors=False,
-                              motion_outliers=True, drop_fixation=True):
+                              motion_outliers=True, drop_fixation=True, verbose=True):
 
             """
             Instantiates and fits a FirstLevelModel GLM object, compiles condition and contrast z-maps
@@ -496,7 +497,7 @@ class Subject(BIDSPointer):
             else:
                   matrices = self.first_level_design(non_steady_state=non_steady_state, include_modulators=include_modulators,
                                                    auto_block_regressors=auto_block_regressors, motion_outliers=motion_outliers,
-                                                   drop_fixation=drop_fixation)
+                                                   drop_fixation=drop_fixation, verbose=verbose)
             
             # If user has not provided updated contrast map, the default pairwsie contrasts will run
             if self.contrasts == 'default':
@@ -518,25 +519,34 @@ class Subject(BIDSPointer):
             # === Build first-level GLM ===
             glm = first_level.FirstLevelModel(t_r=self.t_r, smoothing_fwhm=smoothing, hrf_model='spm', minimize_memory=False)
 
-            print('\n=== Fitting GLM ===')
+            if verbose:
+                  print('\n=== Fitting GLM ===')
 
             # Fit to functional runs and design matrices
             model = glm.fit(self.bids_container['all_func'], design_matrices=matrices)
 
             # === Conditionally run condition and contrast maps ===
+            if verbose:
+                  disable = False
+            else:
+                  disable = True
+
+
             if conditions:
-                  print('\n=== Mapping condition z-scores ===\n')
+                  if verbose:
+                        print('\n=== Mapping condition z-scores ===\n')
                   
-                  for condition in tqdm(self.conditions):
+                  for condition in tqdm(self.conditions, disable=disable):
                         self._run_contrast(glm=model, contrast=condition, title=condition, output_type='condition',
                                           smoothing=smoothing, plot_brains=plot_brains)
 
             if contrasts:
-                  print('\n=== Mapping contrast z-scores ===\n')
+                  if verbose:
+                        print('\n=== Mapping contrast z-scores ===\n')
 
-                  for k in tqdm(list(contrasts_to_map.keys())):
+                  for k in tqdm(list(contrasts_to_map.keys()), disable=disable):
                         self._run_contrast(glm=model, contrast=contrasts_to_map[k], title=k,
                                            output_type='contrast', smoothing=smoothing, plot_brains=plot_brains)
 
-
-            print(f'\n\n=== {self.task.upper()} contrasts computed! Subject {self.sub_id} has been mapped ===\n\n') 
+            if verbose:
+                  print(f'\n\n=== {self.task.upper()} contrasts computed! Subject {self.sub_id} has been mapped ===\n\n') 
