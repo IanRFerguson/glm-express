@@ -10,7 +10,7 @@ This package comes equipped with two modeling objects:
 
 * `Subject` is a first-level modeler for subject-specific functional neuroimaging data
   
-  * Click **here** for a demo of the `Subject` object
+  * Click <a href="https://github.com/IanRFerguson/glm-express/blob/main/demo/Subject_Demo.pdf" target="_blank">**here**</a> for a demo of the `Subject` object
 
 * `GroupLevel` is a second-level modeler that is optimized to aggregate contrast maps derived by the `Subject` object
 
