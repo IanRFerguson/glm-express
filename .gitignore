@@ -3,6 +3,7 @@ name_ideas.md
 dev/
 bids/
 bids_test/
+demo/dont-share/
 .ipynb_checkpoints/
 *.pyc
 dont-share.ipynb
