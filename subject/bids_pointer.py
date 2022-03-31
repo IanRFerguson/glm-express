@@ -19,13 +19,9 @@ Usage Notes
 """
 
 # ---- Imports
-from typing import Type
-from .build_task_info import build_task_info
-import os, json, pathlib, sys, warnings
+from build_info.build_task_info import build_task_info
+import os, json, pathlib
 import pandas as pd
-import numpy as np
-from tqdm import tqdm
-from time import sleep
 from bids import BIDSLayout
 
 
