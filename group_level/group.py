@@ -115,7 +115,7 @@ class GroupLevel:
       def get_brain_data(self, contrast, smoothing, discard_modulated=True):
             """
             Parameters
-                  contrast: str |
+                  contrast: str | Contrast name derived from first-level modeling
                   discard_modulated: Boolean | if True, modulated maps not included implicitly  
 
             Returns
@@ -187,18 +187,18 @@ class GroupLevel:
       def plot_brain_mosaic(self, contrast, smoothing=8., save_local=False):
             """
             Parameters
-                  contrast: str |
-                  smoothing: float |
-                  save_local: boolean | if True, saves to second-level-output directory
+                  contrast: str | Contrast name from first-level model
+                  smoothing: float | Smoothing kernel from first-level model (this is a naming convention parameter)
+                  save_local: Boolean | if True, saves to second-level-output directory
             """
 
-            #
+            # List of relative paths to relevant NifTi files
             brain_maps = self.get_brain_data(contrast=contrast, smoothing=smoothing)
 
-            #
+            # E.g., 8. => '8mm
             check_smooth = f'{int(smoothing)}mm'
 
-            #
+            # Subset of NifTi files that match given smoothing kernel
             brain_maps = [x for x in brain_maps if check_smooth in x]
 
 
@@ -206,6 +206,7 @@ class GroupLevel:
             # Subplots rows
             rows = int(math.ceil(len(brain_maps) / 5))
 
+            # Instantiate figure cavnas
             figure, axes = plt.subplots(nrows=rows, ncols=5, figsize=(20,20))
 
             if rows > 1:
@@ -221,8 +222,10 @@ class GroupLevel:
 
             for ix, brain in enumerate(brain_maps):
 
+                  # Parse out subject ID
                   sub_id = brain.split('/')[-1].split('_')[0].split('-')[1]
 
+                  # Slightly different logic depending on the shape of the output file (see axes)
                   if rows > 1:
                         k = nip.plot_glass_brain(brain, threshold=3.2, display_mode='z',
                                                 plot_abs=False, colorbar=False, title=sub_id,
@@ -233,6 +236,7 @@ class GroupLevel:
                                                 plot_abs=False, colorbar=False, title=sub_id,
                                                 axes=axes[int(ix % 5)])
 
+            # Save plot locally if True
             if save_local:
                   filename = os.path.join(self.output_path, 'plots', f'brain_mosaic_{contrast}_{int(smoothing)}mm.jpg')
                   plt.savefig(filename)
@@ -317,28 +321,31 @@ class GroupLevel:
             # Fit brain data and 
             model = glm.fit(brain_data, design_matrix=design_matrix)
 
-            #
+            # Run linear contrast on NifTi Image
             contrasted_model = model.compute_contrast(output_type='z_score')
 
-            #
+            # Save local NifTi if True
             if save_output:
 
                   if group_smoothing is not None:
-
+                        #
                         smooth_string = f'{int(group_smoothing)}mm'
 
+                        #
                         output_path = os.path.join(self.output_path, 
                                                   'models', 
                                                   f'second_level_contrast-{contrast}_smoothing-{smooth_string}.nii.gz')
 
+                        #
                         contrasted_model.to_filename(output_path)
 
                   else:
-
+                        #
                         output_path = os.path.join(self.output_path,
                                                   'models',
                                                   f'second_level_contrast-{contrast}_unsmoothed.nii.gz')
 
+                        #
                         contrasted_model.to_filename(output_path)
 
             #
@@ -368,7 +375,7 @@ class GroupLevel:
                   nibabel.Image object (if return_map)
             """
 
-            #
+            # Catch any erroneous user inputs
             if height_control not in ['fdr', 'fpr', 'bonferroni']:
                   raise ValueError(f'Invalid height control parameter {height_control} supplied...')
 
@@ -379,19 +386,19 @@ class GroupLevel:
                   raise ValueError(f'Invalid contrast direction {direction} supplied...')
 
 
-            #
+            # Fit model if none supplied
             if existing_model == None:
 
-                  #
+                  # List of NifTi files
                   brain_data = self.easy_loader(contrast=contrast, smoothing=sub_smoothing)
                   
-                  #
+                  # Build design matrix
                   design_matrix = self.make_design_matrix(direction=direction)
                   
-                  #
+                  # Instantiate SecondLevelModel
                   glm = second_level.SecondLevelModel(smoothing_fwhm=group_smoothing)
                   
-                  #
+                  # Fit to NifTi data
                   model = glm.fit(brain_data, design_matrix=design_matrix)
 
             else:
@@ -413,11 +420,11 @@ class GroupLevel:
 
             if save_output:
                   
-                  #
+                  # Output name for plot
                   plot_filename = os.path.join(self.output_path, 'plots', f'{contrast}_corrected.jpg')
                   
-                  #
-                  model_filename = os.path.join(self.output_path, 'models', f'{contrast}_corrected.nii.gz')
+                  # In development
+                  # model_filename = os.path.join(self.output_path, 'models', f'{contrast}_corrected.nii.gz')
 
                   if plot_style == 'ortho':
                         nip.plot_stat_map(t_map, threshold=t_thresh, title=title,
