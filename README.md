@@ -4,21 +4,17 @@
 
 This is a package for modeling functional neuroimaging tasks. As the name implies, it's optimized to be simple and straightforward! The `task_information.json` file stores all of the regressors and modeling specifications for each task; modifying this file allows you to test a range of analytical outcomes.
 
-## Currently
+## Included
 
-This package comes equipped with two modeling objects:
+This package comes equipped with the following modeling objects:
 
 * `Subject` is a first-level modeler for subject-specific functional neuroimaging data
-  
-  * Click <a href="https://github.com/IanRFerguson/glm-express/blob/main/demo/Subject_Demo.pdf" target="_blank">**here**</a> for a demo of the `Subject` object
-
 * `GroupLevel` is a second-level modeler that is optimized to aggregate contrast maps derived by the `Subject` object
-
-  * Click **here** for a demo of the `GroupLevel` object
+* `Aggregator` applies first-level models to all subjects in your BIDS project (not efficient for larger datasets)
 
 ## In Development
 
-A `RestingState` object is currently in the works, for analyses of subject-level resting state functional connectivity
+* `RestingState` object is currently in development, for analyses of subject-level resting state functional connectivity
 
 
 ## Assumptions
@@ -26,12 +22,13 @@ A `RestingState` object is currently in the works, for analyses of subject-level
 We assume the following about your data:
 
 * Your data is in valid `BIDS` format     <br> 
-* Your data has been preprocessed by `fmriprep` 
-  * These preprocessed data are stored in a `derivatives` folder nested in your `BIDS` project <br>
+* Your data has been preprocessed via `fmriprep` 
+* Your preprocessed data are stored in a `derivatives` folder nested in your `BIDS` project <br>
 * You have adequate events TSV files for all of your functional tasks <br>
 * Any parametric modulators are stored within each event file <br>
   * Otherwise, you can build custom design matrices and feed them into the modeling function
 
+------------
 
 ## About `task_information.json`
 
