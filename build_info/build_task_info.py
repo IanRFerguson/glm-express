@@ -65,6 +65,32 @@ def build_task_info(bids_root):
             json.dump(output, outgoing, indent=6)
 
 
+def build_dataset_description(bids_root):
+      """
+      For whatever reason, sample datasets are often missing a dataset
+      description file. We'll create an empty file at __init__ if it doesn't exist
+
+      Parameters
+            bids_root: str | Relative path to the top of your BIDS project
+      """
+
+      output = {
+            "Acknowledgements": "",
+            "Authors": [],
+            "BIDSVersion": "",
+            "DatasetDOI": "",
+            "Funding": "",
+            "HowToAcknowledge": "",
+            "License": "",
+            "Name": "",
+            "ReferencesAndLinks": [],
+            "template": "project"
+      }
+
+      with open(os.path.join(bids_root, 'dataset_description.json'), 'w') as outgoing:
+            json.dump(output, outgoing, indent=6)
+
+
 if __name__ == "__main__":
       try:
             root = sys.argv[1]
