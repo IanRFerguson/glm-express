@@ -19,7 +19,7 @@ Usage Notes
 """
 
 # ---- Imports
-from glm_express.build_info.build_task_info import build_task_info
+from glm_express.build_info.build_task_info import build_task_info, build_dataset_description
 import os, json, pathlib
 import pandas as pd
 from bids import BIDSLayout
@@ -42,14 +42,17 @@ class BIDSPointer:
                   repetition_time: int | TR value derived from fMRI scanner
             """
 
-            self.sub_id = sub_id                                                    # Unique subject ID from BIDS project
+            self.sub_id = str(sub_id)                                               # Unique subject ID from BIDS project
             self.task = task                                                        # Task name from BIDS project
             self.template_space = template_space                                    # Preprocessed template space
             self.bids_root = bids_root
 
+            # Build dataset description if it doesn't exist
+            if not os.path.exists(os.path.join(self.bids_root, 'dataset_description.json')):
+                  build_dataset_description(self.bids_root)
 
             # === Validate BIDS input ===
-            bids = BIDSLayout(self.bids_root)                                            
+            bids = BIDSLayout(self.bids_root)
 
             if self.sub_id not in bids.get_subjects():
                   raise OSError(f'{self.sub_id} not found in BIDS project ... valid: {bids.get_subjects()}')
