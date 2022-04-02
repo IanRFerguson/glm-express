@@ -19,7 +19,7 @@ Usage Notes
 """
 
 # ---- Imports
-from build_info.build_task_info import build_task_info
+from glm_express.build_info.build_task_info import build_task_info
 import os, json, pathlib
 import pandas as pd
 from bids import BIDSLayout
