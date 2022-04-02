@@ -11,7 +11,7 @@ Ian Richard Ferguson | Stanford University
 """
 
 # ---- Imports
-from .bids_pointer import BIDSPointer
+from glm_express.subject.bids_pointer import BIDSPointer
 import os, json, pathlib
 from time import sleep
 import pandas as pd
