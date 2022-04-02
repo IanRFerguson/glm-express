@@ -11,8 +11,8 @@ Ian Richard Ferguson | Stanford Unversity
 """
 
 # ---- Imports
-from build_info.build_task_info import build_task_info
-from subject.subject import Subject
+from glm_express.build_info.build_task_info import build_task_info
+from glm_express.subject.subject import Subject
 import nibabel as nib
 import bids, os, json
 from tqdm import tqdm
