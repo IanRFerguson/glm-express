@@ -228,7 +228,9 @@ class BIDSPointer:
                     if 'preproc' in x]
 
             # Confounds derived for each functional run
-            confounds = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x if '.tsv' in x]
+            confounds = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x 
+                                                                                 if '.tsv' in x
+                                                                                 if 'confounds_timeseries' in x]
 
             return bold, confounds
 
