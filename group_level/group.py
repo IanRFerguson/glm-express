@@ -30,7 +30,8 @@ class GroupLevel:
             # === BIDS paths ===
             self.bids_root = bids_root
             self._layout = BIDSLayout(self.bids_root)
-            self.subjects = self._layout.get_subjects()
+            self._all_subjects = self._layout.get_subjects()
+            self.subjects = self._iso_BIDSsubjects()
             self._all_tasks = self._layout.get_tasks()
 
             # === Object attributes ===
@@ -93,21 +94,26 @@ class GroupLevel:
                   List of first-level modeled subjects
             """
 
+            # List of ALL BIDS subjects
+            bids_subjects = BIDSLayout(self.bids_root).get_subjects()
+
+            # Relative path to first-level output directory
+            base_path = os.path.join(self.bids_root, "derivatives", "first-level-output")
+
             # Empty list to append into
-            task_subjects = []
+            keepers = []
+
+            # Loop through all BIDS subjects
+            for sub in bids_subjects:
+
+                  # Keep subject if they have been modeled
+                  temp_path = os.path.join(base_path, f"sub-{sub}", f"task-{self.task}")
+
+                  if os.path.exists(temp_path):
+                        keepers.append(sub)
+
+            return keepers
             
-            # Output directory from first-level modeling
-            first_level = os.path.join(self.bids_root, 'derivatives/first-level-output')
-
-            # Loop through subjects ... if they have output for the current task add them to the list
-            for sub in self.subjects:
-                  temp = os.path.join(first_level, f'sub-{sub}', f'task-{self.task}')
-
-                  if os.path.isdir(temp):
-                        task_subjects.append(f'sub-{sub}')
-
-            return task_subjects
-
 
 
       def get_brain_data(self, contrast, smoothing, discard_modulated=True, catch_duplicates=True):
