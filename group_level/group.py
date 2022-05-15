@@ -11,12 +11,10 @@ Ian Richard Ferguson | Stanford University
 # ---- Imports
 import math, os, json, random, pathlib, glob
 import pandas as pd
-import numpy as np
-from tqdm import tqdm
 from nilearn.glm import second_level, threshold_stats_img
 import nilearn.plotting as nip
+from nilearn.reporting import get_clusters_table
 import matplotlib.pyplot as plt
-from nilearn import image
 from bids.layout import BIDSLayout
 
 
@@ -112,11 +110,13 @@ class GroupLevel:
 
 
 
-      def get_brain_data(self, contrast, smoothing, discard_modulated=True):
+      def get_brain_data(self, contrast, smoothing, discard_modulated=True, catch_duplicates=True):
             """
             Parameters
                   contrast: str | Contrast name derived from first-level modeling
+                  smoothing: numeric or string | First-level smoothing maps of interest
                   discard_modulated: Boolean | if True, modulated maps not included implicitly  
+                  catch_duplicates: Boolean | if True, error raised when # of maps exceeds # of subjects
 
             Returns
                   List of relative paths to contrast maps
@@ -125,12 +125,28 @@ class GroupLevel:
             # Output directory from first-level modeling
             derivatives = os.path.join(self.bids_root, 'derivatives/first-level-output')
 
-            # E.g., 8. => 8mm
-            smooth_string = f'{int(smoothing)}mm'
+            # User provides a numeric smoothing value
+            if type(smoothing) in [int, float]:
+                  smooth_string = f'{int(smoothing)}mm'
+
+            # User is one step ahead of us
+            elif "mm" in str(smoothing):
+                  smooth_string = smoothing
+
+            else:
+                  smooth_string = f"{smoothing}mm"
             
             # List of NifTi files that match given contrast
             brain_maps = [x for x in glob.glob(f'{derivatives}/**/*.nii.gz', recursive=True) 
-                         if contrast in x if smooth_string in x]
+                         
+                         # Identifiy maps for first-level contrast of interest
+                         if contrast in x 
+                         
+                         # Identify maps with the appropriate first-level smoothing kernel
+                         if smooth_string in x
+                         
+                         # Tosses regressor maps that were tossed out in first-level
+                         if "_discard" not in x]
 
             """
             If True, modulated contrasts are not included unless explicitly specificed
@@ -143,6 +159,16 @@ class GroupLevel:
             if discard_modulated:
                   brain_maps = [x for x in brain_maps if f'{contrast}_x_' not in x]
 
+            if catch_duplicates:
+                  if len(brain_maps) > len(self.subjects):
+                        raise ValueError(f"""
+                        Please provide more specific contrast name!\n\n
+                        {len(brain_maps)} first-level maps identified for {len(self.subjects)} subjects
+                        """)
+
+            if len(brain_maps) == 0:
+                  raise ValueError(f"ERROR: No first-level maps identified for contrast {contrast}")
+
             return brain_maps
 
 
@@ -152,17 +178,18 @@ class GroupLevel:
             Selects random participant, lists out their modeled conditions and contrasts,
             and aggregates in a dictionary
 
-            TODO: Select second target and compare, to make sure no maps are missing
-
             Returns
                   Dictionary of conditions and contrasts
             """
 
-            def iso_information(x):
-                  return x.split('/')[-1].split('_')[1]
+            def iso_information(x, key):
+                  
+                  # Strips relative path information from filename
+                  iso = os.path.basename(x)
 
-            # Base dictionary
-            output = {'conditions': [], 'contrasts': []}
+                  # Isolate condition or contrast name directly
+                  return iso.split(f"{key}-")[1].split("_smoothing")[0].strip()
+
 
             # TODO: Improve this appoach to be less subjective
             random_target = random.choice(self.subjects)
@@ -171,15 +198,16 @@ class GroupLevel:
             target = os.path.join(self.bids_root, 'derivatives/first-level-output',
                                  f'sub-{random_target}', f'task-{self.task}/models')
 
-            # TODO: Subset the contrast names out (currently full file names)
-            # Add conditions and contrasts to dictionary
-            conditions = [x for x in glob.glob(f'{target}/condition-maps/*.nii.gz', recursive=True)]
-            output['conditions'] = [iso_information(x) for x in conditions]
+            # List and identify all condition files
+            all_conditions = [x for x in glob.glob(os.path.join(target, "condition-maps/**/*.nii.gz"), recursive=True)]
+            conditions = sorted([iso_information(x, "condition") for x in all_conditions])
 
-            contrasts = [x for x in glob.glob(f'{target}/contrast-maps/*.nii.gz', recursive=True)]
-            output['contrasts'] = [iso_information(x) for x in contrasts]
+            # List and identify all contrast files
+            all_contrasts = [x for x in glob.glob(os.path.join(target, "contrast-maps/**/*.nii.gz"), recursive=True)]
+            contrasts = sorted([iso_information(x, "contrast") for x in all_contrasts])
 
-            return output
+            # Returns dictionary of conditions and contrasts
+            return {'conditions': conditions, 'contrasts': contrasts}
 
 
 
@@ -328,27 +356,27 @@ class GroupLevel:
             if save_output:
 
                   if group_smoothing is not None:
-                        #
+                        
+                        # E.g., 8. => 8mm
                         smooth_string = f'{int(group_smoothing)}mm'
 
-                        #
+                        # Define output path for NifTi beta map
                         output_path = os.path.join(self.output_path, 
                                                   'models', 
                                                   f'second_level_contrast-{contrast}_smoothing-{smooth_string}.nii.gz')
 
-                        #
+                        # Save locally
                         contrasted_model.to_filename(output_path)
 
                   else:
-                        #
+                        # Define output path for NifTi beta map
                         output_path = os.path.join(self.output_path,
                                                   'models',
                                                   f'second_level_contrast-{contrast}_unsmoothed.nii.gz')
 
-                        #
+                        # Save locally
                         contrasted_model.to_filename(output_path)
 
-            #
             if return_map:
                   return contrasted_model
 
@@ -365,8 +393,8 @@ class GroupLevel:
                   alpha: float | P-value cutoff parameter for thresholding
                   plot_style: str | Must be in ['ortho', 'glass']
                   cluster_threshold: int | Only required for FPR height control models
-                  sub_smoothing: float |
-                  group_smoothing: float |
+                  sub_smoothing: float | Smoothing from first-level maps
+                  group_smoothing: float | if not None, applies smoothing kernel to group-level map
                   direction: int | Must be in [1, -1]
                   reutrn_map: Boolean | if True, stats image is returned
                   save_output: Boolean | if True, plot is saved to output directory
@@ -434,3 +462,24 @@ class GroupLevel:
                         nip.plot_glass_brain(t_map, threshold=t_thresh, display_mode='lyrz',
                                              plot_abs=False, colorbar=False, title=title,
                                              output_file=plot_filename)
+
+
+
+      def get_clusters(self, stat_map, stat_thresh, cluster=None, two_sided=False, min_distance=8.):
+            """
+            This function is a wrapper for a similar function in Nilearn's reporting module
+
+            Parameters
+                  stat_map: Corrected NifTi image
+                  stat_thresh: float | Should be identicial scale to stat_map param
+                  cluster: int or None | Cluster size threshold for FDR
+                  two_sided: Boolean | if True, employs two-sided evaluation of stat clusters
+                  min_distance: float | Minimum distance between subpeaks in millimeters
+
+            Returns
+                  Cluster table (XYZ) for given NifTi stat map in Pandas DataFrame form
+            """
+
+            return get_clusters_table(stat_img=stat_map, stat_threshold=stat_thresh,
+                                      cluster_threshold=cluster, two_sided=two_sided,
+                                      min_distance=min_distance)
