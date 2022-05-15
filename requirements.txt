@@ -6,3 +6,4 @@ numpy
 nilearn
 py-bids
 scikit-learn
+nltools
