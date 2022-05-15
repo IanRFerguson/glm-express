@@ -10,7 +10,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-__version__ = "1.0.6"
+__version__ = "1.0.7"
 
 from glm_express.aggregator.aggregator import Aggregator
 from glm_express.group_level.group import GroupLevel
