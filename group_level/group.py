@@ -27,6 +27,8 @@ class GroupLevel:
                   bids_root: str | Relative path to BIDS project
             """
 
+            self.task = task
+
             # === BIDS paths ===
             self.bids_root = bids_root
             self._layout = BIDSLayout(self.bids_root)
@@ -35,7 +37,6 @@ class GroupLevel:
             self._all_tasks = self._layout.get_tasks()
 
             # === Object attributes ===
-            self.task = task
             self.output_path = self._build_output_directory
             self.all_contrasts = self._all_available_contrasts()
             self.task_file = self._taskfile_validator()
