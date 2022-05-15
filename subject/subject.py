@@ -12,7 +12,7 @@ Ian Richard Ferguson | Stanford University
 
 # ---- Imports
 from glm_express.subject.bids_pointer import BIDSPointer
-import os, json, pathlib
+import os, json
 from time import sleep
 import pandas as pd
 import numpy as np
@@ -342,15 +342,13 @@ class Subject(BIDSPointer):
                   List of Pandas DataFrame objects (one per functional run)
             """
 
-            model_specs = f"""
-            \n\nRunning first-level designs for {self.task.upper()} with the following parameters:\n\n
-
-            Non-steady state regressors:\t{non_steady_state}\n
-            Modulators:\t\t\t\t{include_modulators}\n
-            Auto-block regressors:\t\t{auto_block_regressors}\n
-            Motion outliers:\t\t\t{motion_outliers}\n
-            Fixation trials:\t\t\t{drop_fixation}
-            \n\n
+            model_specs = f"""\n\nRunning first-level designs for {self.task.upper()} with the following parameters:\n\n
+Non-steady state regressors:\t{non_steady_state}\n
+Modulators:\t\t\t\t{include_modulators}\n
+Auto-block regressors:\t\t{auto_block_regressors}\n
+Motion outliers:\t\t\t{motion_outliers}\n
+Fixation trials:\t\t\t{drop_fixation}
+\n\n
             """
             
             if verbose:
@@ -402,8 +400,8 @@ class Subject(BIDSPointer):
                         if outer != inner:
 
                               # Avoid duplicates - these can be modeled using directionality
-                              if (f'{inner} - {outer}') not in list(contrasts.keys()):
-                                    k = f'{outer} - {inner}'
+                              if (f'{inner}-{outer}') not in list(contrasts.keys()):
+                                    k = f'{outer}-{inner}'
                                     contrasts[k] = k
 
             return contrasts
