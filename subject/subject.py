@@ -492,6 +492,14 @@ Fixation trials:\t\t\t{drop_fixation}
             if user_design_matrices is not None:
                   matrices = user_design_matrices
 
+                  print("\n== PLEASE NOTE: We assume you have provided deisgn matrices in order (e.g., run-1 == first matrix)\n\n")
+
+                  for index, matrix in enumerate(matrices):
+                        filename = f"sub-{self.sub_id}_task-{self.task}_user-defined-matrix_run-{index+1}.jpg"
+                        output_path = os.path.join(self.first_level_output, "plots", filename)
+
+                        nip.plot_design_matrix(matrix, output_file=output_path)
+
             else:
                   matrices = self.first_level_design(non_steady_state=non_steady_state, include_modulators=include_modulators,
                                                    auto_block_regressors=auto_block_regressors, motion_outliers=motion_outliers,
