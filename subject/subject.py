@@ -343,9 +343,9 @@ class Subject(BIDSPointer):
             """
 
             model_specs = f"""\n\nRunning first-level designs for {self.task.upper()} with the following parameters:\n\n
-Non-steady state regressors:\t{non_steady_state}\n
+Non-steady state regressors:\t\t{non_steady_state}\n
 Modulators:\t\t\t\t{include_modulators}\n
-Auto-block regressors:\t\t{auto_block_regressors}\n
+Auto-block regressors:\t\t\t{auto_block_regressors}\n
 Motion outliers:\t\t\t{motion_outliers}\n
 Fixation trials:\t\t\t{drop_fixation}
 \n\n
