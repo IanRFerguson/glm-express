@@ -137,8 +137,10 @@ class BIDSPointer:
                   Task-specific parameters from JSON file
             """
 
+            path = pathlib.Path(self.bids_root).parents[0]
+
             # Relative path to task_information file
-            target = os.path.join('./task_information.json')
+            target = os.path.join(path, "task_information.json")
 
             # Build task file if it doesn't exist
             if not os.path.exists(target):
