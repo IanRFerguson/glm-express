@@ -129,20 +129,20 @@ class RestingState(Build):
 
             atlas_maps, atlas_labels = self.load_atlas(mask=atlas)
             bold_run = self.bids_container[f"run-{run}"]["preprocessed_bold"]
-            confound = self.load_confounds(run=run)
+            confound = self.load_confounds(run=run).loc[:, self.confound_regressor_names]
 
             masker = NiftiMapsMasker(maps_img=atlas_maps, standardize=standardize)
 
             time_series = masker.fit_transform(bold_run, confounds=confound)
 
             correlation_transformer = ConnectivityMeasure(kind="correlation")
-            correlation_matrix = correlation_transformer.fit_transform(time_series)
+            correlation_matrix = correlation_transformer.fit_transform([time_series])[0]
 
             if show_plots:
                   self.plot_correlation_matrix(correlation_matrix, labels=atlas_labels, 
                                                run=run, save_local=save_plots)
 
-                  self.plot_connectomes()
+                  self.plot_connectomes(correlation_matrix, run=run, atlas_map=atlas_maps)
 
 
 
@@ -204,7 +204,5 @@ class RestingState(Build):
                                       output_file=output_path)
 
             else:
-                  nip.plot_connectome(matrix, coordinates, title=title,
-                                      output_file=output_path)
-
+                  nip.plot_connectome(matrix, coordinates, title=title)
                   nip.show()
