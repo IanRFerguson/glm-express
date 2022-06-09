@@ -26,13 +26,13 @@ class Build:
 
 
             # === Validate BIDS input ===
-            """bids = BIDSLayout(self.bids_root)
+            bids = BIDSLayout(self.bids_root)
 
             if self.sub_id not in bids.get_subjects():
                   raise OSError(f"{self.sub_id} not found in BIDS project")
 
             if self.task not in bids.get_tasks():
-                  raise OSError(f"{self.task} not found in BIDS project")"""
+                  raise OSError(f"{self.task} not found in BIDS project")
 
 
             # === BIDS Paths ===
