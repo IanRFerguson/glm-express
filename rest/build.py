@@ -10,7 +10,7 @@ import pandas as pd
 from bids import BIDSLayout
 
 # --- Object definition
-class Build:
+class Build_RS:
 
       def __init__(self, sub_id, task="rest", bids_root="./bids", suppress=False, 
                    template_space="MNI152NLin2009c"):
@@ -99,11 +99,10 @@ class Build:
 
             # Build out subdirectories
             for secondary in ['models', 'plots']:
-                  for tertiary in ['condition-maps', 'contrast-maps']:
-                        temp = os.path.join(primary, secondary, tertiary)
+                  temp = os.path.join(primary, secondary)
 
-                        if not os.path.exists(temp):
-                              pathlib.Path(temp).mkdir(parents=True, exist_ok=True)
+                  if not os.path.exists(temp):
+                        pathlib.Path(temp).mkdir(parents=True, exist_ok=True)
 
             return primary
 
