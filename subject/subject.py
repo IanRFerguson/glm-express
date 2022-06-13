@@ -11,7 +11,7 @@ Ian Richard Ferguson | Stanford University
 """
 
 # ---- Imports
-from glm_express.bids_pointer.bids_pointer import BIDSPointer
+from glm_express.subject.bids_pointer import Build_Subject
 import os, json
 from time import sleep
 import pandas as pd
@@ -22,16 +22,16 @@ from nilearn.glm import first_level
 from nilearn.reporting import make_glm_report
 
 # ---- Object definition
-class Subject(BIDSPointer):
+class Subject(Build_Subject):
 
       # ---- Class functions
       def __init__(self, sub_id, task, bids_root, suppress=False, template_space="MNI152NLin2009",
                   repetition_time=1., dummy_scans=0):
 
             # Inherits constructor from BIDSPointer
-            BIDSPointer.__init__(self, sub_id=sub_id, task=task, bids_root=bids_root, suppress=suppress,
-                                template_space=template_space, repetition_time=repetition_time,
-                                dummy_scans=dummy_scans)
+            Build_Subject.__init__(self, sub_id=sub_id, task=task, bids_root=bids_root, suppress=suppress,
+                                   template_space=template_space, repetition_time=repetition_time,
+                                   dummy_scans=dummy_scans)
 
             # Boolean - are modulators provided or not?
             self.has_modulators = self._has_modulators()
