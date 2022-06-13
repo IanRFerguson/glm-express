@@ -11,6 +11,8 @@ Ian Richard Ferguson | Stanford University
 
 
 # --- Imports
+from cProfile import label
+from multiprocessing.sharedctypes import Value
 from glm_express.rest.build import Build_RS
 import os, pathlib
 from time import sleep
@@ -332,8 +334,14 @@ Confounds\n{self.bids_container[f"run-{run}"]["confounds"]}\n\n
                               xticklabels=labels, yticklabels=labels)
 
 
-            # Title will double as output filename
-            title = f"sub-{self.sub_id}_task-{self.task}_run-{run}_correlation-matrix"
+            if run == "ALL":
+                  #
+                  title = f"sub-{self.sub_id}_aggregated-matrix"
+
+            else:
+                  # Format plot title
+                  title = f"sub-{self.sub_id}_run-{run}"
+
             plt.title(title)
 
             # Save locally
@@ -368,8 +376,13 @@ Confounds\n{self.bids_container[f"run-{run}"]["confounds"]}\n\n
             # Gets coordinates from 4D probabilistic atlas
             coordinates = nip.find_probabilistic_atlas_cut_coords(maps_img=atlas_map)
 
-            # Format plot title
-            title = f"sub-{self.sub_id}_run-{run}"
+            if run == "ALL":
+                  #
+                  title = f"sub-{self.sub_id}_aggregated-matrix"
+
+            else:
+                  # Format plot title
+                  title = f"sub-{self.sub_id}_run-{run}"
 
             # Save plot to output directory
             if save_local:
@@ -404,3 +417,173 @@ Confounds\n{self.bids_container[f"run-{run}"]["confounds"]}\n\n
                         plt.close()
                   except:
                         pass
+
+
+
+      # --- Time series wrappers
+      def extract_all_time_series(self, method="maps", atlas_to_use=None, labels_to_use=None,
+                                  standardize=True, show_plots=False, save_plots=True,
+                                  save_each_array=True, verbose=False):
+            """
+            This function loops through all resting state BOLD
+            runs and creates a connectivity matrix for each run
+
+            Parameters
+                  method: str | "maps" or "labels", determines masker type
+                  atlas_to_use: NifTi file or path to NifTi file, reference atlas
+                  labels_to_use: list | Functional areas corresponding to reference atlas
+                  standardize: Boolean | if True, time series are z-transformed
+                  show_plots: Boolean | if True, plots are printed to the console
+                  save_plots: Boolean | if True, run-wise plots are saved locally
+                  save_each_array: Boolean | if True, run-wise matricies are saved locally
+                  verbose: Boolean | if True, processes are printed to the console
+
+            Returns
+                  List of fun-wise connectivity matrices
+            """
+
+            method = method.lower().strip()
+
+            # ==== Run NiftiMapsMasker helper method ====
+            if method == "maps":
+
+                  container = []
+
+                  for ix in range(len(self.preprocessed_runs)):
+                        
+                        run = ix + 1
+
+                        temp_matrix = self.matrix_from_maps_masker(run=run, atlas_to_use=atlas_to_use, 
+                                                                  labels_to_use=labels_to_use, standardize=standardize, 
+                                                                  show_plots=show_plots, save_plots=save_plots, 
+                                                                  verbose=verbose, save_matrix_output=save_each_array)
+
+                        container.append(temp_matrix)
+
+
+            # ==== Run NiftiLabelsMasker helper method ====
+            elif method == "labels":
+                  
+                  container = []
+
+                  for ix in range(len(self.preprocessed_runs)):
+                        
+                        run = ix + 1
+
+                        temp_matrix = self.matrix_from_labels_masker(run=run, atlas_to_use=atlas_to_use, 
+                                                                     labels_to_use=labels_to_use, standardize=standardize, 
+                                                                     show_plots=show_plots, save_plots=save_plots, 
+                                                                     verbose=verbose, save_matrix_output=save_each_array)
+
+                        container.append(temp_matrix)
+
+
+            else:
+                 raise ValueError(f"ERROR: {method} is invalid input ... valid: ['maps', 'labels']")
+
+
+            return container
+
+
+
+      def weigh_average_timeseries(self, extracted_timeseries=[], atlas_to_use=None, 
+                                   labels_to_use=None, show_plots=False, save_plots=True, 
+                                   save_matrix=True):
+            """
+            This function aggregates all BOLD connectivity matrices into a single
+            index of a subject's functional connectivity at reast
+
+            Parameters
+                  extracted_timeseries: list | List of connectivity matricies from each BOLD run
+                  atlas_to_use: NifTi file or path to NifTi file to use as reference atlas
+                  labels_to_use: list | Functional areas corresponding to reference atlas
+                  show_plots: Boolean | if True, plots are displayed to the console
+                  save_plots: Boolean | if True, plots are saved to participant output directory
+                  save_matrix: Boolean | if True, each BOLD connectivity matrix is saved locally
+
+            Returns
+                  Average functional connectivity matrix
+            """
+
+            # ==== Validate user input ====
+            if atlas_to_use is None:
+                  print("Defaulting to MSDL atlas")
+                  atlas_to_use, labels_to_use = self.pull_msdl_atlas()
+
+            # Weigh average functional connectivity matrix
+            average_matrix = np.mean(np.array(extracted_timeseries), axis=0)
+
+            # Run plotting functions 
+            self.plot_correlation_matrix(average_matrix, labels=labels_to_use, run="ALL",
+                                         save_local=save_plots, show_plot=show_plots)
+
+            self.plot_connectomes(average_matrix, run="ALL", atlas_map=atlas_to_use,
+                                  save_local=save_plots, show_plot=show_plots)
+
+            # Save matrix locally
+            if save_matrix:
+                  filename = f"sub-{self.sub_id}_task-{self.task}_averaged-matrix.npy"
+
+                  average_matrix.tofile(os.path.join(self.first_level_output,
+                                                     "models",
+                                                     filename))
+
+            return average_matrix
+
+
+
+      def run_weighted_timeseries(self, method="maps", atlas_to_use=None, labels_to_use=None,
+                                  standardize=True, show_plots=False, save_plots=True,
+                                  save_each_array=True, verbose=False, return_matrix=True):
+            """
+            This function combines the wrapping functions above. In practice, it extacts a
+            time series for each BOLD run, creates a connectivity matrix for each run, and
+            aggregates a weighted average as an index of the subject's overall functional
+            connectivity at rest
+
+            Parameters
+                  method: str | maps or labels, determines which masker will be used
+                  atlas_to_use: NifTi file or path to NifTi file to use as reference atlas
+                  labels_to_use: list | Functional areas corresponding to reference atlas
+                  standardize: Boolean | if True, time series is z-transformed
+                  show_plots: Boolean | if True, plots are displayed to the console
+                  save_plots: Boolean | if True, plots are saved to participant output directory
+                  save_each_array: Boolean | if True, a matrix is saved per run
+                  verbose: Boolean | if True, processes are printed to the console
+                  return_matrix: Boolean | if True, the weighted matrix returned
+
+            Returns
+                  If return_matrix, the weighted matrix is returned
+            """
+
+            # ==== Validate user input ====
+            if atlas_to_use is None:
+                  print("Defaulting to MSDL atlas...")
+                  atlas_to_use, labels_to_use = self.pull_msdl_atlas()
+
+
+            if method not in ["maps", "labels"]:
+                  raise ValueError(f"{method} is invalid input ... valid: ['maps', 'labels']")
+
+
+            # ==== Extract run-wise timeseries ====
+            if verbose:
+                  print("Extracting run-wise timeseries...")
+                  sleep(1)
+
+            aggregate_timeseries = self.extract_all_time_series(method=method, atlas_to_use=atlas_to_use,
+                                                                labels_to_use=labels_to_use, standardize=standardize,
+                                                                show_plots=show_plots, save_plots=save_plots,
+                                                                save_each_array=save_each_array, verbose=verbose)
+
+            # ==== Weigh individual timeseries ====
+            if verbose:
+                  print("Aggregating connectivity matrices...")
+                  sleep(1)
+
+            weighted_connectomes = self.weigh_average_timeseries(aggregate_timeseries, atlas_to_use=atlas_to_use,
+                                                                 labels_to_use=labels_to_use, show_plots=show_plots,
+                                                                 save_plots=save_plots, save_matrix=save_each_array)
+
+            if return_matrix:
+                  return weighted_connectomes
