@@ -26,11 +26,11 @@ from bids import BIDSLayout
 
 
 # ---- Object definition
-class BIDSPointer:
+class Build_Subject:
       def __init__(self, sub_id, task, bids_root='./bids', suppress=False, template_space="MNI152NLin6",
                   dummy_scans=0, repetition_time=1.):
             """
-            BIDSPointer constructor
+            Build_Subject constructor
             
             Parameters
                   sub_id: str or int | Subject ID corresponding to label in BIDS project
