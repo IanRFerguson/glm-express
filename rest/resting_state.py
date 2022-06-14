@@ -1,18 +1,6 @@
 #!/bin/python3
 
-"""
-About this Class
-
-RestingState is optimized to model functional and structural connectivity
-in a preprocessed resting state fMRI scan.
-
-Ian Richard Ferguson | Stanford University
-"""
-
-
 # --- Imports
-from cProfile import label
-from multiprocessing.sharedctypes import Value
 from glm_express.rest.build import Build_RS
 import os, pathlib
 from time import sleep
@@ -25,6 +13,12 @@ import nilearn.plotting as nip
 
 # --- Object definition
 class RestingState(Build_RS):
+      """
+      About RestingState
+
+      RestingState is optimized to model functional and structural connectivity
+      in a preprocessed resting state fMRI scan.
+      """
 
       # -- Constructor
       def __init__(self, sub_id, task="rest", bids_root="./bids", suppress=False, 
@@ -326,8 +320,7 @@ Confounds\n{self.bids_container[f"run-{run}"]["confounds"]}\n\n
                         "ERROR: If providing a reference atlas you MUST provide a list of corresponding labels"
                   )
 
-            # -- User desires all runs to be concatenated
-            # TODO: This currently isn't working            
+            # -- User desires all runs to be concatenated         
             if run == "ALL":
                   # List of relative paths to preprocessed BOLD runs
                   bold = [x for x in self.bids_container["all_preprocessed_bold"]]
@@ -379,12 +372,29 @@ Confounds\n{confounds}\n\n
                                              standardize=standardize,
                                              verbose=value)
 
-            # Fit bold run(s) to masker object
-            time_series = masker.fit_transform(bold, confounds=confounds)
+            # -- Fit bold run(s) to masker object
+            # All BOLD runs
+            if run == "ALL":
+                  time_series = []
 
-            # ==== Run correlation transformer ====
-            correlation_transformer = ConnectivityMeasure(kind="correlation")
-            correlation_matrix = correlation_transformer.fit_transform([time_series])[0]
+                  for ix, bold_run in enumerate(bold):
+                        confound_c = confounds[ix]
+
+                        time_series.append(masker.fit_transform(bold_run, confounds=confound_c))
+
+                  correlation_transformer = ConnectivityMeasure(kind="correlation")
+                  correlation_matrices_all = correlation_transformer.fit_transform(time_series)
+
+                  correlation_matrix = correlation_matrices_all.mean_
+
+
+            # Single BOLD run
+            else:
+                  time_series = masker.fit_transform(bold, confounds=confounds)
+
+                  correlation_transformer = ConnectivityMeasure(kind="correlation")
+                  correlation_matrix = correlation_transformer.fit_transform([time_series])[0]
+
 
             # ==== Apply both plotting functions ====
             self.plot_correlation_matrix(correlation_matrix, labels=labels_to_use, 
@@ -394,6 +404,7 @@ Confounds\n{confounds}\n\n
             self.plot_connectomes(correlation_matrix, run=run, 
                                   atlas_map=atlas_to_use, save_local=save_plots, 
                                   show_plot=show_plots)
+
 
             # Save matrix locally if user desires
             if save_matrix_output:
