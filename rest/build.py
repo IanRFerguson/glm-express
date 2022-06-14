@@ -84,6 +84,7 @@ class Build_RS:
                   return json.load(incoming)[self.task]
 
 
+
       def _output_tree(self):
             """
             Builds out subject's directory hierarchy for first-level modeling
@@ -107,6 +108,7 @@ class Build_RS:
             return primary
 
 
+
       def _isolate_raw_data(self):
             """
             Isolates relative paths to unprocessed BOLD files
@@ -122,6 +124,7 @@ class Build_RS:
             pattern = os.path.join(functional_path, "**/*.nii.gz")
 
             return [x for x in glob.glob(pattern, recursive=True) if self.task in x]
+
 
 
       def _isolate_preprocessed_data(self):
@@ -144,6 +147,7 @@ class Build_RS:
                                                                   if "preproc_bold" in x]
 
 
+
       def _isolate_confound_regressors(self):
             """
             Isolates relative paths to TSV files derived from fmriprep
@@ -161,6 +165,7 @@ class Build_RS:
 
             return [x for x in glob.glob(pattern, recursive=True) if self.task in x
                                                                   if "confounds" in x]
+
 
 
       def _build_bids_container(self):
@@ -212,7 +217,7 @@ class Build_RS:
                   try:
                         container["all_preprocessed_bold"].append(current_prep)
                   except:
-                      container["all_preprocessed_bold"] = [current_prep]
+                        container["all_preprocessed_bold"] = [current_prep]
 
 
                   try:
@@ -227,6 +232,7 @@ class Build_RS:
                   json.dump(container, outgoing, indent=5)
 
             return container
+
 
 
       # --- Functional Helpers
