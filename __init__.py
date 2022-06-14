@@ -15,3 +15,4 @@ __version__ = "1.0.7"
 from glm_express.aggregator.aggregator import Aggregator
 from glm_express.group_level.group import GroupLevel
 from glm_express.subject.subject import Subject
+from glm_express.rest.resting_state import RestingState

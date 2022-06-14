@@ -4,9 +4,11 @@ dev/
 bids/
 bids_test/
 demo/dont-share/
+demo/test_bids/
 .ipynb_checkpoints/
 *.pyc
 dont-share.ipynb
 task_information.json
 NOT_FOR_GIT.md
 demo/get_example_brain_data.py
+demo/99-Sandbox.ipynb

@@ -10,6 +10,7 @@ Ian Richard Ferguson | Stanford University
 """
 
 import os, json, sys
+import pathlib
 from bids import BIDSLayout
 
 def derive_tasks(bids_root):
@@ -42,6 +43,9 @@ def build_task_info(bids_root):
 
       # Derive list of tasks in your BIDS project
       functional_tasks = derive_tasks(bids_root)
+      
+      path = pathlib.Path(bids_root).parents[0]
+      output_path = os.path.join(path, "task_information.json")
 
       # Empty dictionary to append into
       output = {}
@@ -61,7 +65,7 @@ def build_task_info(bids_root):
             output[task]['tr'] = 1.                                     # Repetition time for the given first-level task (you can update this in the Subject object too)
 
       # Save task file locally
-      with open(os.path.join('./task_information.json'), 'w') as outgoing:
+      with open(output_path, 'w') as outgoing:
             json.dump(output, outgoing, indent=6)
 
 

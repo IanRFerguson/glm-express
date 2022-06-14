@@ -11,7 +11,7 @@ Ian Richard Ferguson | Stanford University
 """
 
 # ---- Imports
-from glm_express.subject.bids_pointer import BIDSPointer
+from glm_express.subject.bids_pointer import Build_Subject
 import os, json
 from time import sleep
 import pandas as pd
@@ -22,16 +22,16 @@ from nilearn.glm import first_level
 from nilearn.reporting import make_glm_report
 
 # ---- Object definition
-class Subject(BIDSPointer):
+class Subject(Build_Subject):
 
       # ---- Class functions
       def __init__(self, sub_id, task, bids_root, suppress=False, template_space="MNI152NLin2009",
                   repetition_time=1., dummy_scans=0):
 
             # Inherits constructor from BIDSPointer
-            BIDSPointer.__init__(self, sub_id=sub_id, task=task, bids_root=bids_root, suppress=suppress,
-                                template_space=template_space, repetition_time=repetition_time,
-                                dummy_scans=dummy_scans)
+            Build_Subject.__init__(self, sub_id=sub_id, task=task, bids_root=bids_root, suppress=suppress,
+                                   template_space=template_space, repetition_time=repetition_time,
+                                   dummy_scans=dummy_scans)
 
             # Boolean - are modulators provided or not?
             self.has_modulators = self._has_modulators()
@@ -343,9 +343,9 @@ class Subject(BIDSPointer):
             """
 
             model_specs = f"""\n\nRunning first-level designs for {self.task.upper()} with the following parameters:\n\n
-Non-steady state regressors:\t{non_steady_state}\n
+Non-steady state regressors:\t\t{non_steady_state}\n
 Modulators:\t\t\t\t{include_modulators}\n
-Auto-block regressors:\t\t{auto_block_regressors}\n
+Auto-block regressors:\t\t\t{auto_block_regressors}\n
 Motion outliers:\t\t\t{motion_outliers}\n
 Fixation trials:\t\t\t{drop_fixation}
 \n\n
