@@ -11,10 +11,7 @@ This package comes equipped with the following modeling objects:
 * `Subject` is a first-level modeler for subject-specific functional neuroimaging data
 * `GroupLevel` is a second-level modeler that is optimized to aggregate contrast maps derived by the `Subject` object
 * `Aggregator` applies first-level models to all subjects in your BIDS project (not efficient for larger datasets)
-
-## In Development
-
-* `RestingState` object is currently in development, for analyses of subject-level resting state functional connectivity
+* `RestingState` for analyses of subject-level resting state functional connectivity
 
 
 ## Assumptions
