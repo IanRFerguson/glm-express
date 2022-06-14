@@ -1,16 +1,6 @@
 #!/bin/python3
 
 """
-About this Class
-
-BIDSPointer is the foundation of the subject-level
-analysis pipeline. The subsequent Subject object
-inherits this class.
-
-Ian Richard Ferguson | Stanford University
-"""
-
-"""
 Usage Notes
 
 * The TEMPLATE SPACE attribute is hard-coded ... override this with set_template_space()
@@ -20,17 +10,18 @@ Usage Notes
 
 # ---- Imports
 from glm_express.build_info.build_task_info import build_task_info, build_dataset_description
-import os, json, pathlib
+import os, json, pathlib, glob
 import pandas as pd
 from bids import BIDSLayout
 
 
 # ---- Object definition
 class Build_Subject:
-      def __init__(self, sub_id, task, bids_root='./bids', suppress=False, template_space="MNI152NLin6",
+      def __init__(self, sub_id, task, bids_root='./bids', suppress=False, template_space="MNI152NLin2009c",
                   dummy_scans=0, repetition_time=1.):
             """
-            Build_Subject constructor
+            BIDSPointer is the foundation of the subject-level analysis pipeline. 
+            The subsequent Subject object inherits this class.
             
             Parameters
                   sub_id: str or int | Subject ID corresponding to label in BIDS project
@@ -61,11 +52,13 @@ class Build_Subject:
                   raise OSError(f'{self.task} not found in BIDS project ... valid: {bids.get_tasks()}')
 
 
-            # === BIDS Paths ===  
-            self.raw_bold, self.events = self._split_raw_data()                     # Raw (unrprocessed NifTi and Events files)
-            self.preprocessed_bold, self.confounds = self._split_derived_data()     # Preprocessed NifTi and confound regressor files
+            # === BIDS Paths === 
+            self.raw_bold = self._isolate_raw_data()                                # Paths to raw NifTi files
+            self.events = self._isolate_events_files()                              # Paths to event files
+            self.preprocessed_bold = self._isolate_preprocessed_data                # Paths to preprocessed NifTi files
+            self.confounds = self._isolate_confounds_files()                        # Paths to confound regressor TSV files
+            
             self.first_level_output = self._output_tree()                           # Relative path for analysis output
-            self.functional_runs = self._derive_functional_runs()                   # Length of functional runs for this task
             self.bids_container = self._build_container()                           # Container to organize all NifTi / events / confounds
 
 
@@ -107,7 +100,10 @@ class Build_Subject:
 
       def set_conditions(self, incoming):
             if not type(incoming) == list:
-                  raise TypeError('Provide this function with a list of condition trial types from your events file')
+                  raise TypeError(
+                        'Provide this function with a list of condition trial types from your events file'
+                  )
+            
             self.conditions = incoming
 
 
@@ -117,13 +113,18 @@ class Build_Subject:
 
       def set_confound_regressors(self, incoming):
             if not type(incoming) == list:
-                  raise TypeError('Provide this function with a list of regressors derived from fmriprep')
+                  raise TypeError(
+                        'Provide this function with a list of regressors derived from fmriprep'
+                  )
+            
             self.confound_regressors = incoming
 
 
       def set_design_contrasts(self, incoming):
             if not type(incoming) == dict:
-                  raise TypeError('Design contrasts need to be a dictionary in {"labeled_name": "column1 - column2" format')
+                  raise TypeError(
+                        'Design contrasts need to be a dictionary in {"labeled_name": "column1 - column2" format'
+                  )
 
             self.contrasts = incoming
 
@@ -173,73 +174,84 @@ class Build_Subject:
                         if not os.path.exists(temp):
                               pathlib.Path(temp).mkdir(parents=True, exist_ok=True)
 
+
             return primary
 
 
+
       # ---- Isolate data paths
-      def _split_raw_data(self):
+      def _isolate_raw_data(self):
             """
-            Isolates relative paths to unprocessed BOLD and EVENTS files
-
-            Returns
-                  Two lists (path to BOLD files, path to Events files)
+            Returns list of NifTi files directly off the scanner
             """
 
-            # Isolate path to subject data in BIDS project (not preprocessed)
-            iso_path = [path for path in os.listdir(self.bids_root) if self.sub_id in path][0]
-            
-            # Path to functional subdirectory
-            rel_path = os.path.join(self.bids_root, iso_path, 'func')
+            functional_path = os.path.join(self.bids_root,
+                                           f"sub-{self.sub_id}",
+                                           "func")
 
-            # All files in subject's functional subdirectory
-            raw_data = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x]
-            
-            
-            # All NifTi files for the current task
-            bold = [x for x in raw_data if '.nii.gz' in x]
-            
-            # All events files for the current task
-            events = [x for x in raw_data if '.tsv' in x]
+            pattern = os.path.join(functional_path, "**/*.nii.gz")
 
-            return bold, events
+            return [x for x in glob.glob(pattern, recursive=True) if self.task in x]
 
 
 
-      def _split_derived_data(self):
+      def _isolate_events_files(self):
             """
-            Isolates relative paths to preprocessed BOLD and CONFOUNDS files
-
-            Returns
-                  Two lists (path to BOLD files, path to Confounds files)
+            Returns events files for current task
             """
 
-            # Path to fmriprep derivatvies
-            deriv_path = os.path.join(self.bids_root, 'derivatives/fmriprep')
-            
-            # Isolate path to subject's preprocessed data (excluding the useful HTML files created by fmriprep!)
-            iso_path = [path for path in os.listdir(deriv_path) if self.sub_id in path if ".html" not in path][0]
-            
-            # Path to functional subdirectory in preprocessed directory
-            rel_path = os.path.join(deriv_path, iso_path, 'func')
+            functional_path = os.path.join(self.bids_root,
+                                           f"sub-{self.sub_id}",
+                                           "func")
 
-            
-            # Preprocessed NifTi's must match template space and given naming conventions
-            bold = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x 
-                    if self.template_space in x 
-                    if '.nii.gz' in x
-                    if 'preproc' in x]
+            pattern = os.path.join(functional_path, "**/*.tsv")
 
-            # Confounds derived for each functional run
-            confounds = [os.path.join(rel_path, x) for x in os.listdir(rel_path) if self.task in x 
-                                                                                 if '.tsv' in x
-                                                                                 if 'confounds_timeseries' in x]
+            return [x for x in glob.glob(pattern, recursive=True) if self.task in x]
 
-            return bold, confounds
+
+
+      def _isolate_preprocessed_data(self):
+            """
+            Returns list of NifTi files derived from fmriprep
+            """
+
+            # BIDS data path (preprocessed)
+            funtional_path = os.path.join(self.bids_root, 
+                                          "derivatives/fmriprep",
+                                          f"sub-{self.sub_id}", 
+                                          "func")
+
+            # Pattern to feed into glob generator
+            pattern = os.path.join(funtional_path, "**/*.nii.gz")
+
+            return [x for x in glob.glob(pattern, recursive=True) if self.task in x
+                                                                  if self.template_space in x
+                                                                  if "preproc_bold" in x]
+
+
+
+      def _isolate_confounds_files(self):
+            """
+            Isolate relative paths to TSV files derived from fmriprep
+            """
+
+            # BIDS data path (preprocessed)
+            functional_path = os.path.join(self.bids_root, 
+                                          "derivatives/fmriprep",
+                                          f"sub-{self.sub_id}", 
+                                          "func")
+
+            # Pattern to feed into glob generator
+            pattern = os.path.join(functional_path, "**/*.tsv")
+
+            return [x for x in glob.glob(pattern, recursive=True) if self.task in x
+                                                                  if "confounds" in x]
 
 
 
       def _derive_functional_runs(self):
             return len(self.raw_bold)
+
 
 
       # ---- Utility helpers
@@ -285,52 +297,58 @@ class Build_Subject:
             # Initialize container
             container = self._init_container()
 
-            # Build runwise and aggregated lists 
-            for run in range(self.functional_runs):
+
+            # Isolate files from BIDS project
+            raw = self._isolate_raw_data()
+            events = self._isolate_events_files()
+            preprocessed = self._isolate_preprocessed_data()
+            confounds = self._isolate_confounds_files
+
+            # Loop through runs from BIDS project
+            for ix in range(len(raw)):
+
+                  # Index 0 == run-1
+                  run_value = f"run-{ix + 1}"
+
+
+                  # Isolate run-wise files
+                  current_raw = [x for x in raw if run_value in x][0]
+                  current_event = [x for x in events if run_value in x][0]
+                  current_prep = [x for x in preprocessed if run_value in x][0]
+                  current_confound = [x for x in confounds if run_value in x][0]
+
+
+                  # Build out run-wise dictionary
+                  container[run_value] = {
+                        "raw_bold": current_raw,
+                        "event": current_event,
+                        "preprocessed_bold": current_prep,
+                        "confounds": current_confound
+                  }
+
+
+                  # Append to dictionary (or create key if it doesn't exist)
+                  try:
+                        container["all_raw_bold"].append(current_raw)
+                  except:
+                        container["all_raw_bold"] = [current_raw]
+
+                  try:
+                        container["all_events"].append(current_event)
+                  except:
+                      container["all_events"] = [current_event]
+
+                  try:
+                      container["all_preprocessed_bold"].append(current_prep)
+                  except:
+                      container["all_preprocessed_bold"] = [current_prep]
+
+                  try:
+                        container["all_confounds"].append(current_confound)
+                  except:
+                        container["all_confounds"] = [current_confound]
                   
-                  key = f'run-{run+1}'
-
-                  # Subject has multiple functional runs for the current task
-                  if len(self.preprocessed_bold) > 1:
-                        current_bold = [x for x in self.preprocessed_bold if key in x][0]
-                        current_event = [x for x in self.events if key in x][0]
-                        current_confound = [x for x in self.confounds if key in x][0]
-
-                  # Subject has a single functional run for the current task
-                  else:
-                        try:
-                              current_bold = [x for x in self.preprocessed_bold][0]
-
-                        # Raise error if no functional runs are found - we assume this to be erroneous
-                        except:
-                              raise ValueError(f'No functional runs identified for task-{self.task} + template-space-{self.template_space}')
-                        
-                        
-                        #
-                        current_event = [x for x in self.events][0]
-                        current_confound = [x for x in self.confounds][0]
-
-                  """
-                  Philosophy of this step ...
-
-                  * We'll have run-wise keys (e.g., run-1, run-2, etc.) that will store relative paths to preprocessed BOLD maps, events, and confounds
-                  * We'll additionally have format-wise keys (e.g., all_functional, all_events, all_confounds)
-                  """
-
-                  # Populate run-wise keys
-                  container[key]['func'] = current_bold
-                  container[key]['event'] = current_event
-                  container[key]['confound'] = current_confound
-
-                  # Append to format-wise keys
-                  container['all_func'].append(current_bold)
-                  container['all_events'].append(current_event)
-                  container['all_confounds'].append(current_confound)
-
-            # Save local BIDS container in subject's first-level-output directory
-            with open(f'{self.first_level_output}/sub-{self.sub_id}_task-{self.task}_bids-container.json', 'w') as outgoing:
-                  json.dump(container, outgoing, indent=5)
-
+                  
             return container
 
 
