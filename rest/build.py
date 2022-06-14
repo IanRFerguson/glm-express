@@ -1,8 +1,5 @@
 #!/bin/python3
 
-"""
-"""
-
 # --- Imports
 from glm_express.build_info.build_task_info import build_task_info, build_dataset_description
 import os, json, glob, pathlib
@@ -11,6 +8,14 @@ from bids import BIDSLayout
 
 # --- Object definition
 class Build_RS:
+      """
+      About Build_RS
+
+      Build_RS provides the skeleton for the RestingState object
+      in GLM Express. It points to subject BIDS data (raw and preprocessed),
+      validates the task_information.json file, and builds out the BIDS container
+      that is essential to all other GLMX operations
+      """
 
       def __init__(self, sub_id, task="rest", bids_root="./bids", suppress=False, 
                    template_space="MNI152NLin2009c"):
@@ -61,25 +66,24 @@ class Build_RS:
             return json.dumps(container, indent=4)
 
 
-      # -- Setters
-
-
-
-      # -- Getters
-
 
       # --- Ecosystem helpers
       def _validate_taskfile(self):
             """
-            
+            Quick function that performs the following
+                  * Ensures task_information file exists
+                  * Loads task-specific user definitions
             """
 
+            # Task info should exist one directory up from BIDS root
             path = pathlib.Path(self.bids_root).parents[0]
             target = os.path.join(path, "task_information.json")
 
+            # Build task information if it doesn't exist
             if not os.path.exists(target):
                   build_task_info(self.bids_root)
 
+            # Return task-specific user definitions
             with open(target) as incoming:
                   return json.load(incoming)[self.task]
 
@@ -117,10 +121,12 @@ class Build_RS:
                   List of relative paths
             """
 
+            # BIDS data path (unprocessed)
             functional_path = os.path.join(self.bids_root, 
                                            f"sub-{self.sub_id}", 
                                            "func")
 
+            # Pattern to feed into glob generator
             pattern = os.path.join(functional_path, "**/*.nii.gz")
 
             return [x for x in glob.glob(pattern, recursive=True) if self.task in x]
@@ -135,11 +141,13 @@ class Build_RS:
                   List of relative paths
             """
 
+            # BIDS data path (preprocessed)
             funtional_path = os.path.join(self.bids_root, 
                                           "derivatives/fmriprep",
                                           f"sub-{self.sub_id}", 
                                           "func")
 
+            # Pattern to feed into glob generator
             pattern = os.path.join(funtional_path, "**/*.nii.gz")
 
             return [x for x in glob.glob(pattern, recursive=True) if self.task in x
@@ -156,11 +164,13 @@ class Build_RS:
                   List of relative paths
             """
 
+            # BIDS data path (preprocessed)
             functional_path = os.path.join(self.bids_root, 
                                           "derivatives/fmriprep",
                                           f"sub-{self.sub_id}", 
                                           "func")
 
+            # Pattern to feed into glob generator
             pattern = os.path.join(functional_path, "**/*.tsv")
 
             return [x for x in glob.glob(pattern, recursive=True) if self.task in x
@@ -170,15 +180,20 @@ class Build_RS:
 
       def _build_bids_container(self):
             """
-            
+            Creates BIDS container - dictionary object that GLMX operations
+            are built upon
             """
 
+            # Empty dictionary to append into
             container = {}
 
+            # Isolate files from BIDS project
             raw = self._isolate_raw_data()
             preprocessed = self._isolate_preprocessed_data()
             confounds = self._isolate_confound_regressors()
 
+
+            # Validate BIDS data structure ... these should all be 1:1
             if len(raw) != len(preprocessed):
                   raise OSError(
                         f"Length mismatch ... raw: {len(raw)} preprocessed: {len(preprocessed)}"
@@ -194,20 +209,29 @@ class Build_RS:
                         f"Length mismatch ... preprocessed: {len(preprocessed)} confounds: {len(confounds)}"
                   )
 
+
+            # Loop through runs from BIDS project
             for ix in range(len(raw)):
 
+                  # Index 0 == run-1
                   run_value = f"run-{ix + 1}"
 
+
+                  # Isolate run-wise files
                   current_raw = [k for k in raw if run_value in k][0]
                   current_prep = [k for k in preprocessed if run_value in k][0]
                   current_confounds = [k for k in confounds if run_value in k][0]
 
+
+                  # Build out run-wise dictionary
                   container[run_value] = {
                         "raw_bold": current_raw,
                         "preprocessed_bold": current_prep,
                         "confounds": current_confounds
                   }
 
+
+                  # Append to dictionary (or create key if it doesn't exist)
                   try:
                         container["all_raw_bold"].append(current_raw)
                   except:
@@ -226,26 +250,35 @@ class Build_RS:
                       container["all_confounds"] = [current_confounds]
 
                   
-            container_filename = f"sub-{self.sub_id}_task-{self.task}_bids-container.json"
-
-            with open(os.path.join(self.first_level_output, container_filename), "w") as outgoing:
-                  json.dump(container, outgoing, indent=5)
-
             return container
 
 
 
       # --- Functional Helpers
       def load_confounds(self, run="ALL"):
+            """
+            Helper function to load confound timeseries TSV derived
+            from fmriprep
+
+            Parameters
+                  run: str or int | Defaults to ALL runs, or else single run (e.g., 1,2,3)
+
+            Returns
+                  Pandas DataFrame
+            """
             
+            # All confounds will be loaded
             if run == "ALL":
 
+                  # Empty DF to append into
                   output = pd.DataFrame()
 
+                  # Loop through confounds and append them to master DF
                   for ix, file in enumerate(self.bids_container["all_confounds"]):
 
                         temp = pd.read_csv(file, sep="\t")
 
+                        # Index 0 == run-1
                         temp["run"] = [ix + 1] * len(temp)
 
                         output = output.append(temp, ignore_index=True)
