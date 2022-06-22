@@ -4,6 +4,7 @@
 from glm_express.build_info.build_task_info import build_task_info, build_dataset_description
 import os, json, glob, pathlib
 import pandas as pd
+import numpy as np
 from bids import BIDSLayout
 
 # --- Object definition
@@ -283,6 +284,10 @@ class Build_RS:
 
                         output = output.append(temp, ignore_index=True)
 
+                  
+                  for confound in ["framewise_displacement", "dvars"]:
+                        output[confound].fillna(np.mean(output[confound]), inplace=True)
+
                   return output.reset_index(drop=True)
 
 
@@ -292,4 +297,9 @@ class Build_RS:
 
                   file = self.bids_container[key]["confounds"]
 
-                  return pd.read_csv(file, sep="\t")
+                  output = pd.read_csv(file, sep="\t")
+
+                  for confound in ["framewise_displacement", "dvars"]:
+                        output[confound].fillna(np.mean(output[confound]), inplace=True)
+
+                  return output
