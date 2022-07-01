@@ -73,6 +73,8 @@ class Build_Subject:
             self.confound_regressors = task_file['confound_regressors']             # List of confound regressors to include
             self.contrasts = task_file['design_contrasts']                          # Dictionary of contrasts to compute
 
+            self.functional_runs = self._derive_functional_runs()                   # Number of NifTi files for subject / task
+
             # Print subject information at __init__
             if not suppress:
                   print(str(self))
@@ -266,11 +268,17 @@ class Build_Subject:
             # Empty dictionary to append into
             container = {}
 
-            # E.g., 0, 1, 2
-            for run in range(self.functional_runs):
+            # Raw NifTi files for current task
+            raw_data = self._isolate_raw_data()
 
-                  # 0 => run-1
-                  key = f'run-{run+1}'
+            # Isolate run values
+            # TODO: Optimize this, a little hacky
+            run_values = [x.split("run-")[1].split("_")[0] for x in raw_data]
+
+            # E.g., 0, 1, 2
+            for run in run_values:
+
+                  key = f"run-{run}"
 
                   container[key] = {}
 
@@ -282,7 +290,7 @@ class Build_Subject:
             container['all_events'] = []
             container['all_confounds'] = []
 
-            return container
+            return container, run_values
 
 
 
@@ -295,20 +303,20 @@ class Build_Subject:
             """
 
             # Initialize container
-            container = self._init_container()
+            container, run_values = self._init_container()
 
 
             # Isolate files from BIDS project
             raw = self._isolate_raw_data()
             events = self._isolate_events_files()
             preprocessed = self._isolate_preprocessed_data()
-            confounds = self._isolate_confounds_files
+            confounds = self._isolate_confounds_files()
 
             # Loop through runs from BIDS project
-            for ix in range(len(raw)):
+            for ix in run_values:
 
                   # Index 0 == run-1
-                  run_value = f"run-{ix + 1}"
+                  run_value = f"run-{ix}"
 
 
                   # Isolate run-wise files
