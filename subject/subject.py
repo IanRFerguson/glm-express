@@ -1,15 +1,5 @@
 #!/bin/python3
 
-"""
-About this Class
-
-Subject inherits all functions and attributes from the BIDSPointer class defined in this package. 
-Building on this framework, Subject is optimized to run basic first-level GLMs out of the box, 
-and users have the option to define their own design matrices as well.
-
-Ian Richard Ferguson | Stanford University
-"""
-
 # ---- Imports
 from glm_express.subject.bids_pointer import Build_Subject
 import os, json
@@ -23,6 +13,11 @@ from nilearn.reporting import make_glm_report
 
 # ---- Object definition
 class Subject(Build_Subject):
+      """
+      Subject inherits all functions and attributes from the BIDSPointer class defined in this package. 
+      Building on this framework, Subject is optimized to run basic first-level GLMs out of the box, 
+      and users have the option to define their own design matrices as well.
+      """
 
       # ---- Class functions
       def __init__(self, sub_id, task, bids_root, suppress=False, template_space="MNI152NLin2009",
