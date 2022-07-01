@@ -322,7 +322,12 @@ class Build_Subject:
                   # Isolate run-wise files
                   current_raw = [x for x in raw if run_value in x][0]
                   current_event = [x for x in events if run_value in x][0]
-                  current_prep = [x for x in preprocessed if run_value in x][0]
+
+                  try:
+                        current_prep = [x for x in preprocessed if run_value in x][0]
+                  except IndexError:
+                        raise IndexError(f"No preprocessed bold runs for {run_value} ... check template space in fmriprep output [currently: {self.template_space}]")
+
                   current_confound = [x for x in confounds if run_value in x][0]
 
 
