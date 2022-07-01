@@ -16,8 +16,6 @@ from sklearn.covariance import GraphicalLassoCV
 # --- Object definition
 class RestingState(Build_RS):
       """
-      About RestingState
-
       RestingState is optimized to model functional and structural connectivity
       in a preprocessed resting state fMRI scan.
       """
