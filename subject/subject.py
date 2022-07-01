@@ -28,89 +28,17 @@ class Subject(Build_Subject):
                                    template_space=template_space, repetition_time=repetition_time,
                                    dummy_scans=dummy_scans)
 
-            # Boolean - are modulators provided or not?
-            self.has_modulators = self._has_modulators()
-
-            if self.has_modulators:
-
-                  # Read in modulators from task_information.json file
-                  self.modulators = self._parse_modulators()
-                  
-                  # Get mean values for each modulator
-                  self._center_modulators()
-
-
-      # ---- Modeling helpers
-      def _parse_modulators(self):
-            """
-            Reads in modulators from task_information.json
-
-            Returns
-                  List of user provided modulators
-            """
-
-            with open('./task_information.json') as incoming:
-                  data = json.load(incoming)[self.task]
-
-            return list(data['modulators'])
-
-
-      def _has_modulators(self):
-            """
-            Returns
-                  Boolean | if True, modulators were provided
-            """
-
-            with open('./task_information.json') as incoming:
-                  data = json.load(incoming)[self.task]
-
-            return len(data['modulators']) > 1
-
-
-      def _center_modulators(self):
-            """
-            Calculates average values from modulators, to use for centering in design stage
-            """
-
-            # Read in all events
-            all_events = self.load_events()
-
-            # Modulators key = empty dictionary to append into
-            self.bids_container['modulators'] = {}
-
-            # Loop through user-provided modulators
-            for mod in self.modulators:
-                  
-                  """
-                  NOTE: We assume that all modulators are contained in your events file!
-
-                  If your modulators are not in the events file, they'll be removed
-                  from the Subject object
-                  """
-                  
-                  if mod not in all_events.columns:
-                        print(f'\n** ERROR: {mod.upper()} not in Events File\n')
-                        self.modulators.remove(mod)
-                        continue
-
-                  # Mean value from modulator column
-                  avg = all_events[mod].mean()
-
-                  # Assign to bids_container object
-                  self.bids_container['modulators'][mod] = avg
-
 
 
       # ---- Modeling functions
-      def generate_design_matrix(self, run, non_steady_state=False, include_modulators=False, 
-                                 auto_block_regressors=False, motion_outliers=True, drop_fixation=True):
+      def generate_design_matrix(self, run, non_steady_state=False, auto_block_regressors=False, 
+                                 motion_outliers=True, drop_fixation=True, a_comp_cor=True, t_comp_cor=True):
             """
             Builds a first level design matrix
 
             Parameters
                   run: int | Functional run number, lines up with events file
                   non_steady_state: boolean | if True, all non steady state regressors are aggregated as one regressor
-                  include_modulators: boolean | if True, Parametric modulators are calculated and included in design matrix
                   auto_block_regressors: boolean | if True, `block_type` and `trial_type` columns are implicitly merged
                   motion_outliers: boolean | if True, all motion outliers are included in design matrix
                   drop_fixation: boolean | if True, fixation trials are dropped from event files
@@ -160,39 +88,6 @@ class Subject(Build_Subject):
                   return f'{block}_{trial}'
 
 
-            def create_temp_dataframe(events, mod_name, frame_times):
-                  """
-                  Creates temporary DataFrame to merge into events DF (optimized to handle modulators)
-
-                  Parameters
-                        events: Pandas DataFrame |
-                        mod_name: str |
-                        frame_times: int |
-
-                  Returns
-                        Reduced Pandas DataFrame
-                  """
-
-                  # Nilearn implicitly requires a modulation column - we'll rename the column of interest here
-                  temp = events.rename(columns={mod_name: 'modulation'})
-
-                  # Calculate distance from the mean for the current modulation
-                  temp['modulation'] = temp['modulation'] - self.bids_container['modulators'][mod_name]
-
-                  # Rename trial_type => trial_type_x_{modulation}
-                  temp['trial_type'] = temp['trial_type'].apply(lambda x: f'{x}_x_{mod_name}')
-
-                  # These will be the only columns we output
-                  output_columns = list(temp['trial_type'].unique())
-
-                  # Translate DataFrame to Design Matrix
-                  dm = first_level.make_first_level_design_matrix(frame_times,
-                                                                  temp,
-                                                                  hrf_model='spm')
-
-                  # Return isolated trial x modulation columns AND index
-                  return dm.loc[:, output_columns].reset_index()
-
 
             def reorder_design_columns(DM):
                   """
@@ -227,15 +122,12 @@ class Subject(Build_Subject):
             # === Model foundations ===
             iso_container = self.bids_container[f'run-{run}']                                   # BIDS container for the current run
             events = pd.read_csv(iso_container['event'], sep='\t')                              # Load events file
-            confounds = pd.read_csv(iso_container['confound'], sep='\t')                        # Load fmriprep regressors
+            confounds = pd.read_csv(iso_container['confounds'], sep='\t')                       # Load fmriprep regressors
             voi = ['onset', 'duration', 'trial_type']                                           # Starting variables of interest
 
             if auto_block_regressors:
                   if 'block_type' in events.columns:
                         voi += ['block_type']                                                   # Add block type to VOI if True
-
-            if include_modulators:
-                  voi += self.modulators                                                        # Add modulators to VOI if True
 
             events = events.loc[:, voi]                                                         # Reduce 
             
@@ -255,25 +147,12 @@ class Subject(Build_Subject):
                   events['trial_type'] = events.apply(block_regressor, axis=1)
                   events.drop(columns=['block_type'], inplace=True)
 
-            # Create mod-wise Design Matrices if True
-            if include_modulators:
-                  mod_matrices = []
-
-                  for novel_modulator in self.modulators:
-                        mod_matrices.append(create_temp_dataframe(events, novel_modulator, frame_times))
-
-
             # Set object conditions to match trial types
             clean_conditions = list(events['trial_type'].dropna().unique())
             self.set_conditions(clean_conditions)
 
             # Create baseline Design Matrix with defined parameters
             events = first_level.make_first_level_design_matrix(frame_times, events, hrf_model='spm').reset_index()
-
-            # Merge modulated DataFrames into Design Matrix if True
-            if include_modulators:
-                  for matrix in mod_matrices:
-                        events = events.merge(matrix, on='index', how='left')
 
             # We assume there are no dummy scans unless otherwise specified
             try:
@@ -292,6 +171,14 @@ class Subject(Build_Subject):
             # Pull in motion outliers to confounds if True
             if motion_outliers:
                   confound_vars += [x for x in list(confounds.columns) if 'motion_outlier' in x]
+
+            # Pull in anatomical noise component derivatives if True
+            if a_comp_cor:
+                  confound_vars += [x for x in list(confounds.columns) if "a_comp_cor" in x]
+
+            # Pull in temporal noise component derivatives if True
+            if t_comp_cor:
+                  confound_vars += [x for x in list(confounds.columns) if "t_comp_cor" in x]
 
             # Isolate confound regressor
             confounds = confounds.loc[:, confound_vars].reset_index()
@@ -321,14 +208,14 @@ class Subject(Build_Subject):
 
 
 
-      def first_level_design(self, non_steady_state=False, include_modulators=False, auto_block_regressors=False,
-                            motion_outliers=True, drop_fixation=True, verbose=True):
+      def first_level_design(self, non_steady_state=False, auto_block_regressors=False,
+                            motion_outliers=True, drop_fixation=True, verbose=True, a_comp_cor=True,
+                            t_comp_cor=True):
             """
             Compiles one design matrix per functional run
 
             Parameters
                   non_steady_state: boolean | if True, all non steady state regressors are aggregated as one regressor
-                  include_modulators: boolean | if True, Parametric modulators are calculated and included in design matrix
                   auto_block_regressors: boolean | if True, `block_type` and `trial_type` columns are implicitly merged
                   motion_outliers: boolean | if True, all motion outliers are included in design matrix
                   drop_fixation: boolean | if True, fixation trials are dropped from event files
@@ -339,10 +226,11 @@ class Subject(Build_Subject):
 
             model_specs = f"""\n\nRunning first-level designs for {self.task.upper()} with the following parameters:\n\n
 Non-steady state regressors:\t\t{non_steady_state}\n
-Modulators:\t\t\t\t{include_modulators}\n
 Auto-block regressors:\t\t\t{auto_block_regressors}\n
 Motion outliers:\t\t\t{motion_outliers}\n
-Fixation trials:\t\t\t{drop_fixation}
+Fixation trials:\t\t\t{drop_fixation}\n
+Anatomical noise components:\t{a_comp_cor}\n
+Temporal noise components:\t\t{t_comp_cor}
 \n\n
             """
             
@@ -360,8 +248,12 @@ Fixation trials:\t\t\t{drop_fixation}
                   run = k+1
 
                   # Generate design matrix given the input parameters
-                  matrix = self.generate_design_matrix(run, non_steady_state, include_modulators,
-                                                      auto_block_regressors, motion_outliers, drop_fixation)
+                  matrix = self.generate_design_matrix(run, non_steady_state=non_steady_state,
+                                                       auto_block_regressors=auto_block_regressors, 
+                                                       motion_outliers=motion_outliers, 
+                                                       drop_fixation=drop_fixation,
+                                                       a_comp_cor=a_comp_cor,
+                                                       t_comp_cor=t_comp_cor)
 
                   # Output filename
                   filename = f'sub-{self.sub_id}_task-{self.task}_run-{run}_design-matrix.jpg'
@@ -403,7 +295,7 @@ Fixation trials:\t\t\t{drop_fixation}
 
 
 
-      def _run_contrast(self, glm, contrast, title, output_type, smoothing, plot_brains=False):
+      def _run_contrast(self, glm, contrast, title, output_type, smoothing, plot_brains=False, plot_type="stat"):
             """
             Linear contrast based on first-level GLM. NifTi output is always saved, stat maps are conditional
 
@@ -449,12 +341,19 @@ Fixation trials:\t\t\t{drop_fixation}
 
                   # Formatted output paths
                   stat_output = f'{plot_base}/sub-{self.sub_id}_{output_type}-{title}_smoothing-{kernel}mm_plot-stat-map.png'
+                  glass_output = f'{plot_base}/sub-{self.sub_id}_{output_type}-{title}_smoothing-{kernel}mm_plot-glass-map.png'
                   report_output = f'{plot_base}/sub-{self.sub_id}_{output_type}-{title}_smoothing-{kernel}mm_contrast-summary.html'
 
                   # Plot stat map
-                  nip.plot_stat_map(z_map, threshold=2.3, colorbar=False, draw_cross=False,
-                                    display_mode='ortho', title=title,
-                                    output_file=stat_output)
+                  if plot_type == "stat":
+                        nip.plot_stat_map(z_map, threshold=2.3, colorbar=False, draw_cross=False,
+                                          display_mode='ortho', title=title,
+                                          output_file=stat_output)
+
+                  elif plot_type == "glass":
+                        nip.plot_glass_brain(z_map, threshold=2.3, plot_abs=False,
+                                             display_mode="lyrz", title=title,
+                                             output_file=glass_output)
 
                   # Make GLM report
                   make_glm_report(model=glm, contrasts=contrast,
@@ -462,9 +361,11 @@ Fixation trials:\t\t\t{drop_fixation}
 
 
 
-      def run_first_level_glm(self, conditions=True, contrasts=True, smoothing=8., plot_brains=True, user_design_matrices=None,
-                              non_steady_state=False, include_modulators=False, auto_block_regressors=False,
-                              motion_outliers=True, drop_fixation=True, verbose=True):
+      def run_first_level_glm(self, conditions=True, contrasts=True, smoothing=8., 
+                              plot_brains=True, user_design_matrices=None,
+                              non_steady_state=False, auto_block_regressors=False,
+                              motion_outliers=True, drop_fixation=True, verbose=True, 
+                              plot_type="stat", a_comp_cor=True, t_comp_cor=True):
 
             """
             Instantiates and fits a FirstLevelModel GLM object, compiles condition and contrast z-maps
@@ -476,10 +377,10 @@ Fixation trials:\t\t\t{drop_fixation}
                   plot_brains: boolean | if True, local contrast images are saved to the first level output directory
                   user_design_matrices: Defaults to None | if supplied, these replace the Object-generated design matrices
                   non_steady_state: boolean | if True, all non steady state regressors are aggregated as one regressor
-                  include_modulators: boolean | if True, Parametric modulators are calculated and included in design matrix
                   auto_block_regressors: boolean | if True, `block_type` and `trial_type` columns are implicitly merged
                   motion_outliers: boolean | if True, all motion outliers are included in design matrix
                   drop_fixation: boolean | if True, fixation trials are dropped from events file
+                  plot_type: str | stat or glass
             """
 
             # === Define DMs and contrasts ===
@@ -488,9 +389,13 @@ Fixation trials:\t\t\t{drop_fixation}
                   matrices = user_design_matrices
 
             else:
-                  matrices = self.first_level_design(non_steady_state=non_steady_state, include_modulators=include_modulators,
-                                                   auto_block_regressors=auto_block_regressors, motion_outliers=motion_outliers,
-                                                   drop_fixation=drop_fixation, verbose=verbose)
+                  matrices = self.first_level_design(non_steady_state=non_steady_state,
+                                                     auto_block_regressors=auto_block_regressors, 
+                                                     motion_outliers=motion_outliers, 
+                                                     drop_fixation=drop_fixation, 
+                                                     verbose=verbose, 
+                                                     a_comp_cor=a_comp_cor, 
+                                                     t_comp_cor=t_comp_cor)
             
             # If user has not provided updated contrast map, the default pairwsie contrasts will run
             if self.contrasts == 'default':
@@ -516,7 +421,9 @@ Fixation trials:\t\t\t{drop_fixation}
                   print('\n=== Fitting GLM ===')
 
             # Fit to functional runs and design matrices
-            model = glm.fit(self.bids_container['all_func'], design_matrices=matrices)
+            model = glm.fit(self.bids_container['all_preprocessed_bold'], 
+                            design_matrices=matrices)
+
 
             # === Conditionally run condition and contrast maps ===
             if verbose:
@@ -530,16 +437,20 @@ Fixation trials:\t\t\t{drop_fixation}
                         print('\n=== Mapping condition z-scores ===\n')
                   
                   for condition in tqdm(self.conditions, disable=disable):
-                        self._run_contrast(glm=model, contrast=condition, title=condition, output_type='condition',
-                                          smoothing=smoothing, plot_brains=plot_brains)
+                        self._run_contrast(glm=model, contrast=condition, title=condition, 
+                                           output_type='condition', smoothing=smoothing, 
+                                           plot_brains=plot_brains,
+                                           plot_type=plot_type)
 
-            if contrasts:
+            if contrasts and len(list(contrasts_to_map.keys())) > 0:
                   if verbose:
                         print('\n=== Mapping contrast z-scores ===\n')
 
                   for k in tqdm(list(contrasts_to_map.keys()), disable=disable):
                         self._run_contrast(glm=model, contrast=contrasts_to_map[k], title=k,
-                                           output_type='contrast', smoothing=smoothing, plot_brains=plot_brains)
+                                           output_type='contrast', smoothing=smoothing, 
+                                           plot_brains=plot_brains,
+                                           plot_type=plot_type)
 
             if verbose:
                   print(f'\n\n=== {self.task.upper()} contrasts computed! Subject {self.sub_id} has been mapped ===\n\n') 
