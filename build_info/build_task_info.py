@@ -58,10 +58,9 @@ def build_task_info(bids_root):
             output[task]['block_identifier'] = 'block_type'             # Column in events file corresponding to Block identifier (if applicable) 
             output[task]['condition_identifier'] = 'trial_type'         # Column in events file corresponding to Trial Type identifier
             output[task]['confound_regressors'] = []                    # Regressors to include from fmriprep confounds file
-            output[task]['design_contrasts'] = 'default'                # Contrasts of interest to run in first-level design
+            output[task]['design_contrasts'] = []                       # Contrasts of interest to run in first-level design
             output[task]['excludes'] = []                               # List of subject IDs to exclude (for batching / SLURM scheduling)
             output[task]['group_level_regressors'] = []                 # Regressors to include at second-level (NOTE: In development)
-            output[task]['modulators'] = []                             # Parametric modulators to include in the first-level analysis (should be columns in events file)
             output[task]['tr'] = 1.                                     # Repetition time for the given first-level task (you can update this in the Subject object too)
 
       # Save task file locally

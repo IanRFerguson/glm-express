@@ -6,6 +6,7 @@ import os, pathlib
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
+import pandas as pd
 from nilearn import datasets
 import nilearn.plotting as nip
 from nilearn.maskers import NiftiLabelsMasker, NiftiMapsMasker
@@ -16,8 +17,6 @@ from sklearn.covariance import GraphicalLassoCV
 # --- Object definition
 class RestingState(Build_RS):
       """
-      About RestingState
-
       RestingState is optimized to model functional and structural connectivity
       in a preprocessed resting state fMRI scan.
       """
@@ -50,6 +49,162 @@ class RestingState(Build_RS):
 
 
 
+      # -- Plotting functions
+      def plot_correlation_matrix(self, matrix, labels, run=None, vmin=-1., vmax=1.,
+                                  save_local=True, show_plot=False, override_range=False,
+                                  custom_title=None, lower_triangle=False):
+            """
+            Custom correlation matrix function
+
+            Parameters
+                  matrix: np.array | Correlation matrix derived from time series data
+                  labels: list | Region or connectome labels from atlas
+                  run: str or int | Run value from BIDS project
+                  vmin: numeric | Minimum value to plot in correlation matrix
+                  vmax: numeric | Maximum value to plot in correlation matrix
+                  save_local: Boolean | if True, matrix is saved to subject output
+                  show_plot:  Boolean | if True, plot is printed to the console
+                  override_range:  Boolean | if True, vmin and vmax are ignored
+                  custom_title: str (optional)
+            """
+
+            if run is None and custom_title is None:
+                 raise ValueError(
+                     "You must provide a run number OR custom title")
+
+            if custom_title:
+                 title = custom_title
+
+            else:
+                  if run == "ALL":
+                       # Format plot title
+                       title = f"sub-{self.sub_id}_aggregated-matrix"
+
+                  else:
+                       # Format plot title
+                       title = f"sub-{self.sub_id}_run-{run}"
+
+            if lower_triangle:
+                 mask = np.triu(np.ones_like(matrix))
+            else:
+                 mask = None
+
+            # Instantiate matplotlib canvas
+            plt.figure(figsize=(12, 10))
+
+            # Fill diagonal with zeroes
+            np.fill_diagonal(matrix, 0)
+
+            # Include vmin and vmax
+            if not override_range:
+                  sns.heatmap(matrix,
+                              cmap="RdBu_r",
+                              vmin=vmin,
+                              vmax=vmax,
+                              xticklabels=labels,
+                              yticklabels=labels,
+                              mask=mask)
+
+            # Ignore vmin and vmax
+            else:
+                  sns.heatmap(matrix,
+                              cmap="RdBu_r",
+                              xticklabels=labels,
+                              yticklabels=labels,
+                              mask=mask)
+
+            plt.title(title)
+
+            # Save locally
+            if save_local:
+                  output_name = os.path.join(self.first_level_output,
+                                             "plots",
+                                             f"{title}.jpg")
+
+                  plt.savefig(output_name)
+
+            # Print plot to console
+            if show_plot:
+                 plt.show()
+            else:
+                 plt.close()
+
+
+      def plot_connectomes(self, matrix, atlas_map, run=None, save_local=False,
+                           show_plot=False, display_mode="lyrz",
+                           custom_title=None, custom_output_name=None):
+            """
+            Plots connectome map in a glass brain
+
+            Parameters
+                  matrix:  np.ndarray | Correlation matrix derived from helper function
+                  run:  str or int | Functional run derived from BIDS project
+                  atlas_map:  NifTi image or path to NifTi image
+                  save_local:  Boolean | if True, connectome plot is saved locally
+                  show_plot:  Boolean | if True, plot is printed to the console
+            """
+
+            if run is None and custom_title is None:
+                 raise ValueError()
+
+            if run is None and custom_output_name is None:
+                 raise ValueError()
+
+            # -- Title definition
+            if custom_title is not None:
+                 title = custom_title
+
+            else:
+                  if run == "ALL":
+                       title = f"sub-{self.sub_id}_aggregated-matrix"
+
+                  else:
+                       title = f"sub-{self.sub_id}_run-{run}"
+
+            # -- Output name definition
+            if custom_output_name is not None:
+                 output_name = f"{custom_output_name}.jpg"
+
+            else:
+                  if run == "ALL":
+                       output_name = f"sub-{self.sub_id}_aggregated-matrix.jpg"
+
+                  else:
+                       output_name = f"sub-{self.sub_id}_run-{run}_connectome.jpg"
+
+            # Gets coordinates from 4D probabilistic atlas
+            coordinates = nip.find_probabilistic_atlas_cut_coords(
+                  maps_img=atlas_map)
+
+            # Save plot to output directory
+            if save_local:
+
+                  # Relative path to output filename
+                  output_path = os.path.join(self.first_level_output, "plots", output_name)
+
+                  nip.plot_connectome(matrix, coordinates, title=title,
+                                      output_file=output_path, display_mode=display_mode)
+
+                  plt.close()
+
+
+            # Display plot
+            if show_plot:
+                  nip.plot_connectome(matrix, coordinates, title=title,
+                                      display_mode=display_mode)
+
+                  nip.show()
+
+            else:
+                  # This is hacky but effectively suppresses output
+                  try:
+                        nip.plot_connectome(matrix, coordinates, display_mode=None)
+                        plt.close()
+                  except:
+                       pass
+
+
+
       # -- Masking functions
       def _compile_single_image(self):
             """
@@ -77,7 +232,7 @@ class RestingState(Build_RS):
 
       def extract_time_series(self, run, method="maps", atlas_to_use=None, labels_to_use=None, 
                               standardize=True, verbose=True, regress_motion_outliers=True,
-                              regress_comp_cor=True):
+                              a_comp_cor=True, t_comp_cor=True):
             """
             TODO: Add docstring
             """
@@ -109,10 +264,11 @@ class RestingState(Build_RS):
                         [x for x in self.load_confounds(run=run).columns 
                         if "motion_outlier" in x]
 
-            if regress_comp_cor:
-                  all_regressors = all_regressors + \
-                        [x for x in self.load_confounds(run=run).columns 
-                        if "a_comp_cor" in x]
+            if a_comp_cor:
+                  all_regressors += [x for x in self.load_confounds(run=run).columns if "a_comp_cor" in x]
+
+            if t_comp_cor:
+                  all_regressors += [x for x in self.load_confounds(run=run).columns if "t_comp_cor" in x]
 
             if verbose:
                   print(f"Regressing out the following: {all_regressors}")
@@ -169,7 +325,8 @@ class RestingState(Build_RS):
 
       def matrix_from_masker(self, run="ALL", method="maps", atlas_to_use=None, 
                              labels_to_use=None, standardize=True, save_matrix_output=False, 
-                             save_plots=False, show_plots=True, return_array=True, verbose=True):
+                             save_plots=False, show_plots=True, return_array=True, verbose=True,
+                             a_comp_cor=True, t_comp_cor=True, lower_triangle=False):
             """
             Creates a correlation matrix derived from time series
 
@@ -184,6 +341,9 @@ class RestingState(Build_RS):
                   show_plots:  Boolean | if True, plots are displayed to the console
                   return_array:  Boolean | if True, array is returned and can be assigned to variable
                   verbose:  Boolean | if True, method mechanics are printed to the console
+                  a_comp_cor: Boolean | if True, anatomical noise components are regressed out
+                  t_comp_cor: Boolean | if True, temporal noise components are regressed out
+                  lower_triangle: Boolean | if True, only lower triangle of correlation matrix is rendered
 
             Returns
                   If return_array == True, returns correlation matrix
@@ -205,7 +365,10 @@ class RestingState(Build_RS):
                                                    atlas_to_use=atlas_to_use,
                                                    labels_to_use=labels_to_use,
                                                    standardize=standardize,
-                                                   verbose=verbose)
+                                                   verbose=verbose,
+                                                   a_comp_cor=a_comp_cor,
+                                                   t_comp_cor=t_comp_cor,
+                                                   lower_triangle=lower_triangle)
 
             
 
@@ -215,12 +378,17 @@ class RestingState(Build_RS):
 
 
             # ==== Apply both plotting functions ====
-            self.plot_correlation_matrix(correlation_matrix, labels=labels_to_use, 
-                                         run=run, save_local=save_plots, 
-                                         show_plot=show_plots)
+            self.plot_correlation_matrix(correlation_matrix, 
+                                         labels=labels_to_use, 
+                                         run=run, 
+                                         save_local=save_plots, 
+                                         show_plot=show_plots,
+                                         lower_triangle=lower_triangle)
 
-            self.plot_connectomes(correlation_matrix, run=run, 
-                                  atlas_map=atlas_to_use, save_local=save_plots, 
+            self.plot_connectomes(correlation_matrix, 
+                                  run=run, 
+                                  atlas_map=atlas_to_use, 
+                                  save_local=save_plots, 
                                   show_plot=show_plots)
 
 
@@ -243,7 +411,8 @@ class RestingState(Build_RS):
       def connectome_covariance(self, run="ALL", method="maps", atlas_to_use=None, labels_to_use=None,
                                 standardize=True, save_matrix_output=False, save_plots=False,
                                 show_plots=True, return_array=True, verbose=True,
-                                sparse_inverse=True):
+                                sparse_inverse=True, a_comp_cor=True, t_comp_cor=True,
+                                lower_triangle=False):
             """
             Maps direct connections between regions using sparse inverse covariance estimator
 
@@ -259,6 +428,12 @@ class RestingState(Build_RS):
                   return_array:  Boolean | if True, array is returned and can be assigned to variable
                   verbose:  Boolean | if True, method mechanics are printed to the console
                   sprase_inverse: Boolean | if True, estimator precision is used (else, estimator covariance is used)
+                  a_comp_cor: Boolean | if True, anatomical noise components are regressed out
+                  t_comp_cor: Boolean | if True, temporal noise components are regressed out
+                  lower_triangle: Boolean | if True, only lower triangle of heatmap is rendered
+
+            Returns
+                  if save_matrix_output, matrix is saved to output directory
             """
 
             # -- Default to MSDL atlas if none is provided
@@ -271,7 +446,9 @@ class RestingState(Build_RS):
                                                    atlas_to_use=atlas_to_use,
                                                    labels_to_use=labels_to_use, 
                                                    standardize=standardize,
-                                                   verbose=verbose)
+                                                   verbose=verbose,
+                                                   a_comp_cor=a_comp_cor,
+                                                   t_comp_cor=t_comp_cor)
 
             estimator = GraphicalLassoCV()
             estimator.fit(time_series)
@@ -290,11 +467,19 @@ class RestingState(Build_RS):
                   c_title = f"sub-{self.sub_id}_{formatted_run}_covariance"
 
             # Plotting function
-            self.plot_correlation_matrix(matrix_values, labels=labels_to_use, custom_title=c_title,
-                                         show_plot=show_plots, save_local=save_plots)
+            self.plot_correlation_matrix(matrix_values, 
+                                         labels=labels_to_use, 
+                                         custom_title=c_title,
+                                         show_plot=show_plots, 
+                                         save_local=save_plots,
+                                         lower_triangle=lower_triangle)
 
-            self.plot_connectomes(matrix_values, atlas_map=atlas_to_use, save_local=save_plots,
-                                  show_plot=show_plots, custom_title=c_title, custom_output_name=c_title)
+            self.plot_connectomes(matrix_values, 
+                                  atlas_map=atlas_to_use, 
+                                  save_local=save_plots,
+                                  show_plot=show_plots, 
+                                  custom_title=c_title, 
+                                  custom_output_name=c_title)
 
 
             if save_matrix_output:
@@ -338,146 +523,54 @@ class RestingState(Build_RS):
 
 
 
-      # -- Plotting functions
-      def plot_correlation_matrix(self, matrix, labels, run=None, vmin=-1., vmax=1., 
-                                  save_local=True, show_plot=False, override_range=False,
-                                  custom_title=None):
+      def matrix_to_dataframe(self, incoming_matrix=None, labels=None, a_comp_cor=True,
+                              t_comp_cor=True):
             """
-            Custom correlation matrix function
+            Renders a one-dimensional Pandas DataFrame with all functional connection correlations mapped.
+            You can supply your own matrix and labels, or use the default MSDL atlas values
 
             Parameters
-                  matrix: np.array | Correlation matrix derived from time series data
-                  labels: list | Region or connectome labels from atlas
-                  run: str or int | Run value from BIDS project
-                  vmin: numeric | Minimum value to plot in correlation matrix
-                  vmax: numeric | Maximum value to plot in correlation matrix
-                  save_local: Boolean | if True, matrix is saved to subject output
-                  show_plot:  Boolean | if True, plot is printed to the console
-                  override_range:  Boolean | if True, vmin and vmax are ignored
-                  custom_title: str (optional)
+                  incoming_matrix: np.ndarray | Defaults to None, in which case covariance matrix is produced
+                  label_indices: List of functional regions to map onto correlation DF
+                  a_comp_cor: Boolean | if True, anatomical noise components are included
+                  t_comp_cor: Boolean | if True, temporal noise components are included
+
+            Returns
+                  Pandas DataFrame
             """
 
-            if run is None and custom_title is None:
-                  raise ValueError("You must provide a run number OR custom title")
+            if incoming_matrix is None:
+                  incoming_matrix = self.connectome_covariance(verbose=False,
+                                                               a_comp_cor=a_comp_cor,
+                                                               t_comp_cor=t_comp_cor,
+                                                               show_plots=False,
+                                                               save_plots=False,
+                                                               save_matrix_output=False,
+                                                               return_array=True)
 
-            if custom_title:
-                  title = custom_title
-           
-            else:
-                  if run == "ALL":
-                        # Format plot title
-                        title = f"sub-{self.sub_id}_aggregated-matrix"
-
-                  else:
-                        # Format plot title
-                        title = f"sub-{self.sub_id}_run-{run}"
-            
-            # Instantiate matplotlib canvas
-            plt.figure(figsize=(12,10))
-            
-            # Fill diagonal with zeroes
-            np.fill_diagonal(matrix, 0)
+            if labels is None:
+                  _, labels = self.pull_msdl_atlas()
 
 
-            # Include vmin and vmax
-            if not override_range:
-                  sns.heatmap(matrix, cmap="RdBu_r", vmin=vmin, vmax=vmax,
-                              xticklabels=labels, yticklabels=labels)
-            
-            # Ignore vmin and vmax
-            else:
-                  sns.heatmap(matrix, cmap="RdBu_r",
-                              xticklabels=labels, yticklabels=labels)
+            wide_df =  pd.DataFrame(incoming_matrix, 
+                                    index=labels, 
+                                    columns=labels)
 
-            plt.title(title)
+            output = {}
 
-            # Save locally
-            if save_local:
-                  output_name = os.path.join(self.first_level_output, 
-                                             "plots",
-                                            f"{title}.jpg")
-
-                  plt.savefig(output_name)
-
-            # Print plot to console
-            if show_plot:
-                  plt.show()
-            else:
-                  plt.close()
-
-
-
-      def plot_connectomes(self, matrix, atlas_map, run=None, save_local=False,
-                           show_plot=False, display_mode="lyrz",
-                           custom_title=None, custom_output_name=None):
-            """
-            Plots connectome map in a glass brain
-
-            Parameters
-                  matrix:  np.ndarray | Correlation matrix derived from helper function
-                  run:  str or int | Functional run derived from BIDS project
-                  atlas_map:  NifTi image or path to NifTi image
-                  save_local:  Boolean | if True, connectome plot is saved locally
-                  show_plot:  Boolean | if True, plot is printed to the console
-            """
-
-            if run is None and custom_title is None:
-                  raise ValueError()
-
-            if run is None and custom_output_name is None:
-                  raise ValueError()
-
-            # -- Title definition
-            if custom_title is not None:
-                  title = custom_title
-            
-            else:
-                  if run == "ALL":
-                        title = f"sub-{self.sub_id}_aggregated-matrix"
-
-                  else:
-                        title = f"sub-{self.sub_id}_run-{run}"
-
-
-            # -- Output name definition
-            if custom_output_name is not None:
-                  output_name = f"{custom_output_name}.jpg"
-            
-            else:
-                  if run == "ALL":
-                        output_name = f"sub-{self.sub_id}_aggregated-matrix.jpg"
-
-                  else:
-                        output_name = f"sub-{self.sub_id}_run-{run}_connectome.jpg"
-
-
-            # Gets coordinates from 4D probabilistic atlas
-            coordinates = nip.find_probabilistic_atlas_cut_coords(maps_img=atlas_map)
-
-
-            # Save plot to output directory
-            if save_local:
+            for region_l in labels:
                   
-                  # Relative path to output filename
-                  output_path = os.path.join(self.first_level_output, "plots", output_name)
+                  for region_r in labels:
+                        
+                        if region_l != region_r:
 
-                  nip.plot_connectome(matrix, coordinates, title=title,
-                                      output_file=output_path, display_mode=display_mode)
+                              if f"{region_r}_{region_l}" not in list(output.keys()):
 
-                  plt.close()
+                                    key = f"{region_l}_{region_r}"
+
+                                    value = wide_df.loc[region_l, region_r]
+
+                                    output[key] = value
 
 
-            # Display plot 
-            if show_plot:
-                  nip.plot_connectome(matrix, coordinates, title=title,
-                                      display_mode=display_mode)
-
-                  nip.show()
-
-            else:
-                  # This is hacky but effectively suppresses output
-                  try:
-                        nip.plot_connectome(matrix, coordinates, display_mode=None)
-                        plt.close()
-                  except:
-                        pass
+            return pd.DataFrame(output, index=[0])

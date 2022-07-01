@@ -1,13 +1,5 @@
 #!/bin/python3
 
-"""
-About this Class
-
-GroupLevel aggregates first-level contrast maps derived from the Subject class.
-
-Ian Richard Ferguson | Stanford University
-"""
-
 # ---- Imports
 import math, os, json, random, pathlib, glob
 import pandas as pd
@@ -20,6 +12,10 @@ from bids.layout import BIDSLayout
 
 # ---- Object definition
 class GroupLevel:
+      """
+      GroupLevel aggregates first-level contrast maps derived from the Subject class
+      """
+
       def __init__(self, task, bids_root='./bids'):
             """
             Parameters
@@ -27,19 +23,19 @@ class GroupLevel:
                   bids_root: str | Relative path to BIDS project
             """
 
-            self.task = task
+            self.task = task                                                  # Task name from BIDS project
 
             # === BIDS paths ===
-            self.bids_root = bids_root
-            self._layout = BIDSLayout(self.bids_root)
-            self._all_subjects = self._layout.get_subjects()
-            self.subjects = self._iso_BIDSsubjects()
-            self._all_tasks = self._layout.get_tasks()
+            self.bids_root = bids_root                                        # Relative path to BIDS project
+            self._layout = BIDSLayout(self.bids_root)                         # Instantiate BIDSLayout object
+            self._all_subjects = self._layout.get_subjects()                  # List of BIDS subjects
+            self.subjects = self._iso_BIDSsubjects()                          # Subjects who have been modeled for task
+            self._all_tasks = self._layout.get_tasks()                        # List of BIDS tasks
 
             # === Object attributes ===
-            self.output_path = self._build_output_directory
-            self.all_contrasts = self._all_available_contrasts()
-            self.task_file = self._taskfile_validator()
+            self.output_path = self._build_output_directory                   # Relative path to output directory
+            self.all_contrasts = self._all_available_contrasts()              # Dictionary of modeled contrasts
+            self.task_file = self._taskfile_validator()                       # Dictionary of modeling parameters
 
 
 
@@ -96,7 +92,7 @@ class GroupLevel:
             """
 
             # List of ALL BIDS subjects
-            bids_subjects = BIDSLayout(self.bids_root).get_subjects()
+            bids_subjects = self._all_subjects
 
             # Relative path to first-level output directory
             base_path = os.path.join(self.bids_root, "derivatives", "first-level-output")
@@ -281,27 +277,6 @@ class GroupLevel:
 
 
       # ---- Modeling functions
-      def easy_loader(self, contrast, smoothing=8.):
-            """
-            Parameters
-                  contrast: str | Contrast map derived from first-level model
-                  smoothing: float | Smoothing kernel applied to first-level maps
-
-            Returns
-                  List of relative paths to all contrast-specific contrast maps
-            """
-
-            # Pattern to match in glob function
-            f_path = f'{self.bids_root}/derivatives/first-level-output/**/*.nii.gz'
-
-            # E.g., 8. => 8mm ... for naming convention purposes
-            f_smooth = f'{int(smoothing)}mm'
-
-            # Returns list of brain maps
-            return [x for x in glob.glob(f_path) if contrast in x if f_smooth in x]
-
-
-
       def make_design_matrix(self, direction=1):
             """
             Parameters
@@ -425,7 +400,7 @@ class GroupLevel:
             if existing_model == None:
 
                   # List of NifTi files
-                  brain_data = self.easy_loader(contrast=contrast, smoothing=sub_smoothing)
+                  brain_data = self.get_brain_data(contrast=contrast, smoothing=sub_smoothing)
                   
                   # Build design matrix
                   design_matrix = self.make_design_matrix(direction=direction)
