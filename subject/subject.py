@@ -229,7 +229,7 @@ Non-steady state regressors:\t\t{non_steady_state}\n
 Auto-block regressors:\t\t\t{auto_block_regressors}\n
 Motion outliers:\t\t\t{motion_outliers}\n
 Fixation trials:\t\t\t{drop_fixation}\n
-Anatomical noise components:\t{a_comp_cor}\n
+Anatomical noise components:\t\t{a_comp_cor}\n
 Temporal noise components:\t\t{t_comp_cor}
 \n\n
             """
@@ -442,13 +442,16 @@ Temporal noise components:\t\t{t_comp_cor}
                                            plot_brains=plot_brains,
                                            plot_type=plot_type)
 
-            if contrasts and len(list(contrasts_to_map.keys())) > 0:
+            if (contrasts) and (len(self.contrasts)) > 0:
                   if verbose:
                         print('\n=== Mapping contrast z-scores ===\n')
 
                   for k in tqdm(list(contrasts_to_map.keys()), disable=disable):
-                        self._run_contrast(glm=model, contrast=contrasts_to_map[k], title=k,
-                                           output_type='contrast', smoothing=smoothing, 
+                        self._run_contrast(glm=model,
+                                           contrast=contrasts_to_map[k], 
+                                           title=k,
+                                           output_type='contrast', 
+                                           smoothing=smoothing, 
                                            plot_brains=plot_brains,
                                            plot_type=plot_type)
 
