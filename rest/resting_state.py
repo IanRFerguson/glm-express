@@ -1,8 +1,8 @@
 #!/bin/python3
 
 # --- Imports
-from glm_express.rest.build import Build_RS
-import os, pathlib
+from .build import Build_RS
+import os, pathlib, json
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -66,6 +66,7 @@ class RestingState(Build_RS):
                   show_plot:  Boolean | if True, plot is printed to the console
                   override_range:  Boolean | if True, vmin and vmax are ignored
                   custom_title: str (optional)
+                  lower_triangle: Boolean | if True, only bottom triangle of matrix is printed
             """
 
             if run is None and custom_title is None:
@@ -130,6 +131,7 @@ class RestingState(Build_RS):
                  plt.close()
 
 
+
       def plot_connectomes(self, matrix, atlas_map, run=None, save_local=False,
                            show_plot=False, display_mode="lyrz",
                            custom_title=None, custom_output_name=None):
@@ -142,6 +144,9 @@ class RestingState(Build_RS):
                   atlas_map:  NifTi image or path to NifTi image
                   save_local:  Boolean | if True, connectome plot is saved locally
                   show_plot:  Boolean | if True, plot is printed to the console
+                  display_mode: str | Defaults to Left Y Right Z
+                  custom_title: str | Overwrites the automated plot title
+                  custom_output_name: str | Overwrites the automated output name
             """
 
             if run is None and custom_title is None:
@@ -172,9 +177,16 @@ class RestingState(Build_RS):
                   else:
                        output_name = f"sub-{self.sub_id}_run-{run}_connectome.jpg"
 
-            # Gets coordinates from 4D probabilistic atlas
-            coordinates = nip.find_probabilistic_atlas_cut_coords(
-                  maps_img=atlas_map)
+            try:
+                  # Gets coordinates from 4D probabilistic atlas
+                  coordinates = nip.find_probabilistic_atlas_cut_coords(
+                        maps_img=atlas_map
+                  )
+            except:
+                  # Get coordinates from 3D atlas
+                  coordinates = nip.find_parcellation_cut_coords(
+                        labels_img=atlas_map
+                  )
 
             # Save plot to output directory
             if save_local:
@@ -230,7 +242,7 @@ class RestingState(Build_RS):
 
 
 
-      def extract_time_series(self, run, method="maps", atlas_to_use=None, labels_to_use=None, 
+      def extract_time_series(self, run="ALL", method="maps", atlas_to_use=None, labels_to_use=None, 
                               standardize=True, verbose=True, regress_motion_outliers=True,
                               a_comp_cor=True, t_comp_cor=True):
             """
@@ -255,7 +267,7 @@ class RestingState(Build_RS):
                   )
 
 
-            all_regressors = [self.confound_regressor_names]
+            all_regressors = self.confound_regressor_names
 
 
             # -- Check modeling parameters
@@ -271,7 +283,7 @@ class RestingState(Build_RS):
                   all_regressors += [x for x in self.load_confounds(run=run).columns if "t_comp_cor" in x]
 
             if verbose:
-                  print(f"Regressing out the following: {all_regressors}")
+                  print(f"Regressing out the following: {json.dumps(all_regressors, indent=4)}")
 
 
             # -- User defined concatenated runs
@@ -281,8 +293,6 @@ class RestingState(Build_RS):
 
                   confounds.fillna(0, inplace=True)
 
-                  header = f"sub-{self.sub_id}_concatenated-BOLD-runs"
-
 
             # -- Single run
             elif run != "ALL":
@@ -291,9 +301,6 @@ class RestingState(Build_RS):
 
                   # Isolate confound regressors
                   confounds = self.load_confounds(run=run).loc[:, self.confound_regressor_names].fillna(0)
-
-                  # This will print if verbose
-                  header = f"sub-{self.sub_id}_run-{run}"
 
 
             # Define verbosity
@@ -361,15 +368,14 @@ class RestingState(Build_RS):
                   )
 
 
-            time_series = self.extract_time_series(run=run, method=method,
+            time_series = self.extract_time_series(run=run, 
+                                                   method=method,
                                                    atlas_to_use=atlas_to_use,
                                                    labels_to_use=labels_to_use,
                                                    standardize=standardize,
                                                    verbose=verbose,
                                                    a_comp_cor=a_comp_cor,
-                                                   t_comp_cor=t_comp_cor,
-                                                   lower_triangle=lower_triangle)
-
+                                                   t_comp_cor=t_comp_cor)
             
 
             # -- Fit bold run(s) to masker object
@@ -378,18 +384,19 @@ class RestingState(Build_RS):
 
 
             # ==== Apply both plotting functions ====
-            self.plot_correlation_matrix(correlation_matrix, 
-                                         labels=labels_to_use, 
-                                         run=run, 
-                                         save_local=save_plots, 
-                                         show_plot=show_plots,
-                                         lower_triangle=lower_triangle)
+            if show_plots or save_plots:
+                  self.plot_correlation_matrix(correlation_matrix, 
+                                          labels=labels_to_use, 
+                                          run=run, 
+                                          save_local=save_plots, 
+                                          show_plot=show_plots,
+                                          lower_triangle=lower_triangle)
 
-            self.plot_connectomes(correlation_matrix, 
-                                  run=run, 
-                                  atlas_map=atlas_to_use, 
-                                  save_local=save_plots, 
-                                  show_plot=show_plots)
+                  self.plot_connectomes(correlation_matrix, 
+                                    run=run, 
+                                    atlas_map=atlas_to_use, 
+                                    save_local=save_plots, 
+                                    show_plot=show_plots)
 
 
             # Save matrix locally if user desires
