@@ -10,9 +10,9 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-__version__ = "1.0.7"
+__version__ = "1.8.9"
 
-from glm_express.aggregator.aggregator import Aggregator
-from glm_express.group_level.group import GroupLevel
-from glm_express.subject.subject import Subject
-from glm_express.rest.resting_state import RestingState
+from .aggregator.aggregator import Aggregator
+from .subject.subject import Subject
+from .group_level.group import GroupLevel
+from .rest.resting_state import RestingState
