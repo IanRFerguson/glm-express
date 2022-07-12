@@ -10,7 +10,7 @@ import warnings
 warnings.simplefilter(action='ignore', category=FutureWarning)
 warnings.simplefilter(action='ignore', category=UserWarning)
 
-__version__ = "1.8.9"
+__version__ = "2.0.0"
 
 from .aggregator.aggregator import Aggregator
 from .subject.subject import Subject
