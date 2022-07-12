@@ -153,7 +153,7 @@ class Build_RS:
 
             return [x for x in glob.glob(pattern, recursive=True) if self.task in x
                                                                   if self.template_space in x
-                                                                  if "preproc_bold" in x]
+                                                                  if "preproc" in x]
 
 
 
@@ -218,10 +218,18 @@ class Build_RS:
                   run_value = f"run-{ix + 1}"
 
 
-                  # Isolate run-wise files
-                  current_raw = [k for k in raw if run_value in k][0]
-                  current_prep = [k for k in preprocessed if run_value in k][0]
-                  current_confounds = [k for k in confounds if run_value in k][0]
+                  # Abstract enough to catch files with or without run- in naming convention
+                  try:
+                        # Isolate run-wise files
+                        current_raw = [k for k in raw if run_value in k][0]
+                        current_prep = [k for k in preprocessed if run_value in k][0]
+                        current_confounds = [k for k in confounds if run_value in k][0]
+
+                  # We assume there's one run if run- is not in naming convention
+                  except:
+                        current_raw = [k for k in raw][0]
+                        current_prep = [k for k in preprocessed][0]
+                        current_confounds = [k for k in confounds][0]
 
 
                   # Build out run-wise dictionary
@@ -286,7 +294,12 @@ class Build_RS:
 
                   
                   for confound in ["framewise_displacement", "dvars"]:
-                        output[confound].fillna(np.mean(output[confound]), inplace=True)
+                        try:
+                              output[confound].fillna(np.mean(output[confound]), inplace=True)
+                        except Exception as e:
+                              print(e)
+                              continue
+
 
                   return output.reset_index(drop=True)
 
