@@ -172,10 +172,10 @@ class RestingState(Build_RS):
 
             else:
                   if run == "ALL":
-                       output_name = f"sub-{self.sub_id}_aggregated-matrix.jpg"
+                       output_name = f"sub-{self.sub_id}_aggregated-matrix-glass-brain.jpg"
 
                   else:
-                       output_name = f"sub-{self.sub_id}_run-{run}_connectome.jpg"
+                       output_name = f"sub-{self.sub_id}_run-{run}_connectome-glass-brain.jpg"
 
             try:
                   # Gets coordinates from 4D probabilistic atlas
@@ -530,9 +530,11 @@ class RestingState(Build_RS):
 
 
 
-      def matrix_to_dataframe(self, incoming_matrix=None, labels=None, a_comp_cor=True,
+      def _matrix_to_dataframe(self, incoming_matrix=None, labels=None, a_comp_cor=True,
                               t_comp_cor=True):
             """
+            IN DEVELOPMENT
+            
             Renders a one-dimensional Pandas DataFrame with all functional connection correlations mapped.
             You can supply your own matrix and labels, or use the default MSDL atlas values
 
