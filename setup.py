@@ -7,7 +7,7 @@ HERE = pathlib.Path(__file__).parent
 README = (HERE / "README.md").read_text()
 
 setup(name='glm_express',
-      version='2.0.3',
+      version='2.0.4',
       description='Automated linear models for functional neuroimaging data',
       long_description=README,
       long_description_content_type="text/markdown",
