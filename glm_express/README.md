@@ -1,5 +1,7 @@
 # GLM-Express
 
+<img src="./img/GLM_Express_cardinal.png" width=65%>
+
 This is a package for modeling functional neuroimaging tasks. As the name implies, it's optimized to be simple and straightforward! The `task_information.json` file stores all of the regressors and modeling specifications for each task; modifying this file allows you to test a range of analytical outcomes.
 
 ## Included
@@ -9,10 +11,7 @@ This package comes equipped with the following modeling objects:
 * `Subject` is a first-level modeler for subject-specific functional neuroimaging data
 * `GroupLevel` is a second-level modeler that is optimized to aggregate contrast maps derived by the `Subject` object
 * `Aggregator` applies first-level models to all subjects in your BIDS project (not efficient for larger datasets)
-
-## In Development
-
-* `RestingState` object is currently in development, for analyses of subject-level resting state functional connectivity
+* `RestingState` for analyses of subject-level resting state functional connectivity
 
 
 ## Assumptions

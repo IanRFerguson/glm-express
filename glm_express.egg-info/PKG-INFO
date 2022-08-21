@@ -1,3 +1,18 @@
+Metadata-Version: 2.1
+Name: glm-express
+Version: 1.8.9
+Summary: Automated linear models for functional neuroimaging data
+Home-page: https://github.com/IanRFerguson/glm-express
+Author: Ian Richard Ferguson
+Author-email: IRF229@nyu.edu
+License: MIT
+Platform: UNKNOWN
+Classifier: License :: OSI Approved :: MIT License
+Classifier: Programming Language :: Python :: 3
+Classifier: Programming Language :: Python :: 3.7
+Description-Content-Type: text/markdown
+License-File: LICENSE
+
 # GLM-Express
 
 This is a package for modeling functional neuroimaging tasks. As the name implies, it's optimized to be simple and straightforward! The `task_information.json` file stores all of the regressors and modeling specifications for each task; modifying this file allows you to test a range of analytical outcomes.
@@ -39,3 +54,4 @@ Glossary of keys in the `task_information` file; manipulating these allow you to
 * `modulators`: Parametric modulators to weight trial type (these should be in your events file)
 * `block_identifier`: Column in your events file that denotes block type; defaults to `null`
 * `design_contrasts`: Your defined contrasts! Include as few or as many as you see fit
+

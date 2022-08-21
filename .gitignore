@@ -12,3 +12,4 @@ task_information.json
 NOT_FOR_GIT.md
 demo/get_example_brain_data.py
 demo/99-Sandbox.ipynb
+glm_express/bids
