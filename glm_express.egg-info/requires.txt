@@ -1,8 +1,0 @@
-nilearn
-pandas
-tqdm
-matplotlib
-numpy
-pybids
-nibabel
-nltools
