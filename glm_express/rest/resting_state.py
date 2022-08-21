@@ -2,7 +2,7 @@
 
 # --- Imports
 from .build import Build_RS
-import os, pathlib, json
+import os, pathlib, json, glob
 import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
@@ -333,7 +333,7 @@ class RestingState(Build_RS):
       def matrix_from_masker(self, run="ALL", method="maps", atlas_to_use=None, 
                              labels_to_use=None, standardize=True, save_matrix_output=False, 
                              save_plots=False, show_plots=True, return_array=True, verbose=True,
-                             a_comp_cor=True, t_comp_cor=True, lower_triangle=False):
+                             a_comp_cor=True, t_comp_cor=True, lower_triangle=False, custom_output_name=False):
             """
             Creates a correlation matrix derived from time series
 
@@ -351,10 +351,15 @@ class RestingState(Build_RS):
                   a_comp_cor: Boolean | if True, anatomical noise components are regressed out
                   t_comp_cor: Boolean | if True, temporal noise components are regressed out
                   lower_triangle: Boolean | if True, only lower triangle of correlation matrix is rendered
+                  custom_output_name: Boolean | if True, output .npy file has custom naming convention
 
             Returns
                   If return_array == True, returns correlation matrix
             """
+
+            # -- Sanity checks
+            if custom_output_name:
+                  save_matrix_output = True
 
             # -- Default to MSDL atlas if none is provided
             if atlas_to_use is None:
@@ -401,14 +406,19 @@ class RestingState(Build_RS):
 
             # Save matrix locally if user desires
             if save_matrix_output:
-                  
-                  if run == "ALL":
-                        filename = f"sub-{self.sub_id}_task-{self.task}_aggregated.npy"
 
-                  else:
-                        filename = f"sub-{self.sub_id}_task-{self.task}_run-{run}_maps-masker-matrix.npy"
+                  if custom_output_name:
+                        filename = f"{custom_output_name}.npy"
 
-                  correlation_matrix.tofile(os.path.join(self.first_level_output, "models", filename))
+                  else: 
+                        if run == "ALL":
+                              filename = f"sub-{self.sub_id}_task-{self.task}_aggregated.npy"
+
+                        else:
+                              filename = f"sub-{self.sub_id}_task-{self.task}_run-{run}_maps-masker-matrix.npy"
+
+                  with open(os.path.join(self.first_level_output, "models", filename), "wb") as outgoing:
+                        np.save(outgoing, correlation_matrix)
 
             if return_array:
                   return correlation_matrix
@@ -419,7 +429,7 @@ class RestingState(Build_RS):
                                 standardize=True, save_matrix_output=False, save_plots=False,
                                 show_plots=True, return_array=True, verbose=True,
                                 sparse_inverse=True, a_comp_cor=True, t_comp_cor=True,
-                                lower_triangle=False):
+                                lower_triangle=False, custom_output_name=False):
             """
             Maps direct connections between regions using sparse inverse covariance estimator
 
@@ -438,10 +448,15 @@ class RestingState(Build_RS):
                   a_comp_cor: Boolean | if True, anatomical noise components are regressed out
                   t_comp_cor: Boolean | if True, temporal noise components are regressed out
                   lower_triangle: Boolean | if True, only lower triangle of heatmap is rendered
+                  custom_output_name: Boolean | if True, output .npy file has custom naming convention
 
             Returns
                   if save_matrix_output, matrix is saved to output directory
             """
+
+            # -- Sanity checks
+            if custom_output_name:
+                  save_matrix_output = True
 
             # -- Default to MSDL atlas if none is provided
             if atlas_to_use is None:
@@ -491,11 +506,19 @@ class RestingState(Build_RS):
 
             if save_matrix_output:
                   
-                  # Custome output name
-                  output_name = f"{c_title}.npy"
+                  if custom_output_name:
+
+                        # We want to overwrite any inadvertent file extensions the user supplies
+                        custom_output_name = custom_output_name.split(".")[0].strip().lower()
+
+                        filename = f"{custom_output_name}.npy"
+
+                  else:
+                        filename = f"{c_title}.npy"
 
                   # Save file locally
-                  matrix_values.tofile(os.path.join(self.first_level_output, "models", output_name))
+                  with open(os.path.join(self.first_level_output, "models", filename), "wb") as outgoing:
+                        np.save(outgoing, matrix_values)
 
 
             if return_array:
@@ -503,30 +526,54 @@ class RestingState(Build_RS):
 
 
 
-      def load_correlation_matrix(self, run, masker_method="maps"):
+      def load_correlation_matrix(self, array_id=None):
             """
-            Loads a correlation matrix that has been run and saved
+            This function loads a stored `numpy` array from previously extracted
+            time series:
+
+            * If one matrix exists, it can be loaded without passing an argument
+            * If multiple matrices exist in the output directory, the user **MUST** provide input
+            to the `array_id` parameter
 
             Parameters
-                  run:  str or int | Function run derived from BIDS project
-                  masker_method:  str | Method that time series was extracted
+                  `array_id`: str | Optional if only one correlation matrix exists in the output directory. This should
+                  match only one correlation matrix, such that it can be identified via list comprehension
 
             Returns
-                  2x2 correlation matrix as numpy.ndarray object
+                  numpy.ndarray
             """
 
-            # File name of saved correlation matrix
-            target_file_name = f"sub-{self.sub_id}_task-{self.task}_run-{run}_{masker_method}-masker-matrix.npy"
-            
-            # Relative path to file, if it exists
-            target_path = os.path.join(self.first_level_output, "models", target_file_name)
+            # Recursive search for Numpy files in output directory
+            pattern = os.path.join(self.first_level_output, "**/*.npy")
 
-            # Return array if it exists
-            if os.path.exists(target_path):
-                  return np.load(target_path)
+            # List of relative paths to all Numpy files
+            all_matrices = [x for x in glob.glob(pattern, recursive=True)]
 
-            else:
-                  raise OSError(f"File doesn't exist: {target_file_name}")
+            # CASE: Single array stored, we can return it directly
+            if len(all_matrices) == 1:
+                  return np.load(all_matrices[0])
+
+            # CASE: Multiple arrays stored, user has provided target ID
+            elif len(all_matrices) > 1 and array_id is not None:
+
+                  # Reduce to files that match target ID
+                  check = [x for x in all_matrices if array_id in x.split("/")[-1]]
+
+                  # If this was successful, only one array should be identified
+                  if len(check) == 1:
+                        return np.load(check[0])
+
+                  # Oops! We have too many arrays to choose from
+                  else:
+                        raise ValueError(
+                              f"array_id: {array_id} is not descriptive enough ... {len(check)} arrays returned"
+                        )
+
+            # # Oops! We have too many arrays to choose from
+            elif len(all_matrices) > 1 and array_id is None:
+                  raise ValueError(
+                        f"array_id: {array_id} is not descriptive enough ... {len(all_matrices)} arrays returned"
+                  )
 
 
 
