@@ -507,6 +507,10 @@ class RestingState(Build_RS):
             if save_matrix_output:
                   
                   if custom_output_name:
+
+                        # We want to overwrite any inadvertent file extensions the user supplies
+                        custom_output_name = custom_output_name.split(".")[0].strip().lower()
+
                         filename = f"{custom_output_name}.npy"
 
                   else:
