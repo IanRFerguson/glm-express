@@ -23,10 +23,10 @@ setup(name='glm_express',
       packages=[
             'glm_express',
             'glm_express/aggregator',
-            'glm_express/build_info',
             'glm_express/group_level',
             'glm_express/subject',
-            'glm_express/rest'
+            'glm_express/rest',
+            'glm_express/utils'
             ],
       include_package_data=True,
       install_requires=[
