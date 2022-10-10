@@ -1,8 +1,7 @@
 #!/bin/python3
-from glm_express.build_info.build_task_info import build_task_info
-from glm_express.subject.subject import Subject
-import nibabel as nib
-import bids, os, json
+from ..subject.subject import Subject
+from ..utils.build import build_task_info
+import bids, os
 from tqdm import tqdm
 
 ##########
