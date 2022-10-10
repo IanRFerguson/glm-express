@@ -1,6 +1,4 @@
 #!/bin/python3
-
-# --- Imports
 from .build import Build_RS
 import os, pathlib, json, glob
 import matplotlib.pyplot as plt
@@ -13,8 +11,8 @@ from nilearn.maskers import NiftiLabelsMasker, NiftiMapsMasker
 from nilearn.connectome import ConnectivityMeasure
 from sklearn.covariance import GraphicalLassoCV
 
+##########
 
-# --- Object definition
 class RestingState(Build_RS):
       """
       RestingState is optimized to model functional and structural connectivity

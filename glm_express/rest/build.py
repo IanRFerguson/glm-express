@@ -1,13 +1,12 @@
 #!/bin/python3
-
-# --- Imports
-from glm_express.build_info.build_task_info import build_task_info, build_dataset_description
+from ..build_info.build_task_info import build_task_info, build_dataset_description
 import os, json, glob, pathlib
 import pandas as pd
 import numpy as np
 from bids import BIDSLayout
 
-# --- Object definition
+##########
+
 class Build_RS:
       """
       About Build_RS

@@ -1,30 +1,21 @@
 #!/bin/python3
-
-"""
-About this Class
-
-The Aggregator class runs first-level GLMs on a given BIDS project. 
-The user supplies the BIDS root and a functional task of interest 
-and the Aggregator does the rest of the heavy lifting.
-
-Ian Richard Ferguson | Stanford Unversity
-"""
-
-# ---- Imports
-from glm_express.build_info.build_task_info import build_task_info
-from glm_express.subject.subject import Subject
-import nibabel as nib
-import bids, os, json
+from ..subject.subject import Subject
+from ..utils.build import build_task_info
+import bids, os
 from tqdm import tqdm
 
-# ---- Object definition
+##########
+
 class Aggregator:
+      """
+      Runs first-level GLMs on a given BIDS project. 
+      The user supplies the BIDS root and a functional task of interest 
+      and the Aggregator does the rest of the heavy lifting.
+      """
 
       # ---- Class functions
-      def __init__(self, bids_root, task, template_space='MNI152NLin2009'):
+      def __init__(self, bids_root: os.path, task: str, template_space: str='MNI152NLin2009'):
             """
-            Constructor method
-
             Parameters
                   bids_root: str | Relative path to the top of your BIDS project (e.g., './bids')
                   task: str | Functional task from your BIDS project (e.g., 'stopsignal')
@@ -40,7 +31,7 @@ class Aggregator:
 
 
       # ---- Helper functions
-      def _derive_subjects(self):
+      def _derive_subjects(self) -> list:
             """
             Returns
                   List of subjects from your BIDS project
@@ -53,7 +44,7 @@ class Aggregator:
             return bids_.get_subjects()
 
 
-      def _check_task_file(self):
+      def _check_task_file(self) -> bool:
             """
             Returns
                   Boolean | if True, the requisite task information file exists
@@ -62,10 +53,10 @@ class Aggregator:
             return os.path.exists('./task_information.json')
 
 
-      def run_all_models(self, smoothing=8., verbose=False, conditions=True, contrasts=True,
-                         plot_brains=True, user_design_matrices=None, non_steady_state=False,
-                         include_modulators=False, auto_block_regressors=False, motion_outliers=True,
-                         drop_fixation=True):
+      def run_all_models(self, smoothing:float=8., verbose:bool=False, conditions:bool=True, 
+                         contrasts:bool=True, plot_brains:bool=True, user_design_matrices:list=None, 
+                         non_steady_state:bool=False, include_modulators:bool=False, auto_block_regressors:bool=False, 
+                         motion_outliers:bool=True, drop_fixation:bool=True):
             """
             Loops through all subjects in BIDS project and fits first-level GLMs using
             Subject object and run_first_level_glm function

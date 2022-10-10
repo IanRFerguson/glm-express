@@ -1,6 +1,4 @@
 #!/bin/python3
-
-# ---- Imports
 import math, os, json, random, pathlib, glob
 import pandas as pd
 from nilearn.glm import second_level, threshold_stats_img
@@ -9,14 +7,14 @@ from nilearn.reporting import get_clusters_table
 import matplotlib.pyplot as plt
 from bids.layout import BIDSLayout
 
+##########
 
-# ---- Object definition
 class GroupLevel:
       """
-      GroupLevel aggregates first-level contrast maps derived from the Subject class
+      Aggregates first-level contrast maps derived from the Subject class
       """
 
-      def __init__(self, task, bids_root='./bids'):
+      def __init__(self, task: str, bids_root: os.path='./bids'):
             """
             Parameters
                   task: str | Corresponds to functional task in your BIDS project
@@ -39,7 +37,7 @@ class GroupLevel:
 
 
 
-      def _taskfile_validator(self):
+      def _taskfile_validator(self) -> dict:
             """
             Confirms existence of task_information.json. This file should have been created
             in the Subject object!
@@ -56,7 +54,7 @@ class GroupLevel:
 
 
 
-      def _build_output_directory(self):
+      def _build_output_directory(self) -> os.path:
             """
             Builds out group-level directory hierarchy for second-level modeling
 
@@ -83,7 +81,7 @@ class GroupLevel:
 
 
 
-      def _iso_BIDSsubjects(self):
+      def _iso_BIDSsubjects(self) -> list:
             """
             Aggregates list of subjects that have undergone first-level modeling
 
@@ -113,7 +111,8 @@ class GroupLevel:
             
 
 
-      def get_brain_data(self, contrast, smoothing, discard_modulated=True, catch_duplicates=True):
+      def get_brain_data(self, contrast: str, smoothing: float, 
+                         discard_modulated: bool=True, catch_duplicates: bool=True) -> list:
             """
             Parameters
                   contrast: str | Contrast name derived from first-level modeling
@@ -176,7 +175,7 @@ class GroupLevel:
 
 
 
-      def _all_available_contrasts(self):
+      def _all_available_contrasts(self) -> dict:
             """
             Selects random participant, lists out their modeled conditions and contrasts,
             and aggregates in a dictionary
@@ -215,7 +214,7 @@ class GroupLevel:
 
 
       # ---- Utility functions
-      def plot_brain_mosaic(self, contrast, smoothing=8., save_local=False):
+      def plot_brain_mosaic(self, contrast: str, smoothing: float=8., save_local: bool=False):
             """
             Parameters
                   contrast: str | Contrast name from first-level model
@@ -277,7 +276,7 @@ class GroupLevel:
 
 
       # ---- Modeling functions
-      def make_design_matrix(self, direction=1):
+      def make_design_matrix(self, direction: int=1):
             """
             Parameters
                   direction: int | 1 or -1 (determines direction of linear contrast)
@@ -296,12 +295,27 @@ class GroupLevel:
             design_matrix = pd.DataFrame({'subject_label': subject_labels,
                                            'intercept': [direction] * len(subject_labels)})
 
-            return second_level.make_second_level_design_matrix(subject_labels, design_matrix)
+            try:
+                  return second_level.make_second_level_design_matrix(
+                        subject_labels, 
+                        design_matrix
+                  )
+
+            except Exception as e:
+                  print(f"EXCEPTION OCURRED @ SECOND LEVEL DESIGN MATRIX: {e}")
+                  print("Defaulting to generic design matrix, consider supplying your own matrix")
+
+                  dummy_matrix = pd.DataFrame({'subject_label': subject_labels})
+
+                  return second_level.make_second_level_design_matrix(
+                        subject_labels,
+                        dummy_matrix
+                  )
 
 
 
-      def uncorrected_model(self, contrast, sub_smoothing=8., group_smoothing=None, direction=1,
-                           return_map=True, save_output=False):
+      def uncorrected_model(self, contrast: str, sub_smoothing: float=8., group_smoothing: float=None, 
+                            direction: int=1, return_map: bool=True, save_output: bool=False):
             """
             Parameters
                   contrast: str | First-level contrast
@@ -310,7 +324,7 @@ class GroupLevel:
                   direction: int | 1 or -1, determines direction of linear contrast
 
             Returns
-                  nibabel.Image object (if return_map)
+                  if return_map: nibabel.Image object
             """
 
             if direction not in [1, -1]:
@@ -364,9 +378,10 @@ class GroupLevel:
 
 
 
-      def corrected_model(self, contrast, existing_model=None, height_control='fdr', alpha=.05,
-                         plot_style='ortho', cluster_threshold=None, sub_smoothing=8.,
-                         group_smoothing=None, direction=1, return_map=True, save_output=False):
+      def corrected_model(self, contrast:str, existing_model: second_level.SecondLevelModel=None, 
+                          height_control: str='fdr', alpha: float=.05, plot_style: str='ortho', 
+                          cluster_threshold: int=None, sub_smoothing: float=8., group_smoothing: float=None, 
+                          direction: int=1, return_map: bool=True, save_output: bool=False):
             """
             Parameters
                   contrast: str | Valid contrast from first level model 
@@ -445,9 +460,13 @@ class GroupLevel:
                                              plot_abs=False, colorbar=False, title=title,
                                              output_file=plot_filename)
 
+            if return_map:
+                  return t_map
 
 
-      def get_clusters(self, stat_map, stat_thresh, cluster=None, two_sided=False, min_distance=8.):
+
+      def get_clusters(self, stat_map, stat_thresh: float, cluster: int=None, 
+                       two_sided: bool=False, min_distance: float=8.):
             """
             This function is a wrapper for a similar function in Nilearn's reporting module
 
