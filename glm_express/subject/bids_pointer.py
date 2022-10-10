@@ -1,4 +1,7 @@
 #!/bin/python3
+import shutil
+
+from torch import full
 from ..utils.general_utils import build_dataset_description
 from ..utils.wrapper import build_task_info
 import os, json, pathlib, glob
@@ -35,6 +38,8 @@ class Build_Subject:
             self.template_space = template_space                                    # Preprocessed template space
             self.bids_root = bids_root
 
+            #####
+
             # Build dataset description if it doesn't exist
             if not os.path.exists(os.path.join(self.bids_root, 'dataset_description.json')):
                   build_dataset_description(self.bids_root)
@@ -52,31 +57,26 @@ class Build_Subject:
                         f'{self.task} not found in BIDS project ... valid: {bids.get_tasks()}'
                   )
 
+            #####
 
-            # === BIDS Paths === 
-            self.raw_bold = self._isolate_raw_data()                                # Paths to raw NifTi files
-            self.events = self._isolate_events_files()                              # Paths to event files
-            self.preprocessed_bold = self._isolate_preprocessed_data                # Paths to preprocessed NifTi files
-            self.confounds = self._isolate_confounds_files()                        # Paths to confound regressor TSV files
+            self._BUILD(full_data=full_dataset)       # NOTE: The bulk of filepath construction occurs here
+
+            #####
             
-            self.first_level_output = self._output_tree()                           # Relative path for analysis output
-            self.bids_container = self._build_container()                           # Container to organize all NifTi / events / confounds
+            task_file = self._validate_task_file() 
+            self.conditions = []
+            self.condition_variable = task_file['condition_identifier']
+            self.confound_regressors = task_file['confound_regressors']
+            self.contrasts = task_file['design_contrasts']
 
+            #####
 
-            # === Object attributes ===
-            task_file = self._validate_task_file()                                  # Build task_information.json file if it doesn't exist                             
+            self.t_r = repetition_time                                              
+            self.dummy_scans = dummy_scans                                          
+            self.functional_runs = self._derive_functional_runs()                   
 
-            self.t_r = repetition_time                                              # User-defined repetition time
-            self.dummy_scans = dummy_scans                                          # User-defined dummy scans
+            #####
 
-            self.conditions = []                                                    # Conditions list (empty @ __init__)
-            self.condition_variable = task_file['condition_identifier']             # 
-            self.confound_regressors = task_file['confound_regressors']             # List of confound regressors to include
-            self.contrasts = task_file['design_contrasts']                          # Dictionary of contrasts to compute
-
-            self.functional_runs = self._derive_functional_runs()                   # Number of NifTi files for subject / task
-
-            # Print subject information at __init__
             if not suppress:
                   print(str(self))
 
@@ -94,7 +94,25 @@ class Build_Subject:
 
 
 
-      # ---- Setter methods
+      def reset_output_directory(self):
+            """
+            NOTE: WELCOME TO THE DANGER ZONE
+
+            This function wipes out the output directory for the current
+            subject and task, it cannot be undone
+            """
+
+            print(f"\nAre you SURE you want to delete sub-{self.sub_id} {self.task.upper()} data?")
+            check_in = input("Y/N:\t").strip().upper()
+
+            if check_in == "Y":
+                  shutil.rmtree(self.first_level_output)
+                  print("DONE")
+
+
+      ##########
+
+      
       def set_tr(self, incoming: float):
             self.t_r = incoming
 
@@ -141,8 +159,33 @@ class Build_Subject:
             self.contrasts = incoming
 
 
+      ##########
 
-      # ---- Ecosystem helpers
+      
+      def _BUILD(self, full_data: bool=False):
+            """
+            This function assigns properties to the Build_Subject object
+                  * Path to preprocessed NifTis
+                  * Path to events files
+                  * Path to confound regressors
+                  * [[ If applicable ]] Path to raw NifTis
+
+            Parameters
+                  full_data: bool | if True, this function includes raw (unprocessed) NifTi files
+            """
+
+            self.raw_bold = self._isolate_raw_data(full_data=full_data)
+            self.events = self._isolate_events_files(full_data=full_data)
+            self.preprocessed_bold = self._isolate_preprocessed_data()
+            self.confound_regressors = self._isolate_confounds_files()
+
+            #####
+
+            self.first_level_output = self._output_tree()                   
+            self.bids_container = self._build_container()   
+
+
+
       def _validate_task_file(self) -> dict:
             """
             Builds task_information.json if it doesn't already exist
@@ -188,35 +231,80 @@ class Build_Subject:
             return primary
 
 
+      ##########
 
-      # ---- Isolate data paths
-      def _isolate_raw_data(self) -> list:
+      
+      def _isolate_raw_data(self, full_data: bool=False) -> list:
             """
             Returns list of NifTi files directly off the scanner
+
+            Parameters
+                  full_data: bool | if False, returns empty list (no paths)
             """
 
-            functional_path = os.path.join(self.bids_root,
-                                           f"sub-{self.sub_id}",
-                                           "func")
+            if full_data:
+                  functional_path = os.path.join(
+                        self.bids_root,
+                        f"sub-{self.sub_id}",
+                        "func")
 
-            pattern = os.path.join(functional_path, "**/*.nii.gz")
+                  pattern = os.path.join(functional_path, "**/*.nii.gz")
 
-            return [x for x in glob.glob(pattern, recursive=True) if self.task in x]
+                  return [x for x in glob.glob(pattern, recursive=True) if self.task in x]
+
+            else:
+                  return []
 
 
 
-      def _isolate_events_files(self) -> list:
+      def _isolate_events_files(self, full_data: bool=False) -> list:
             """
             Returns events files for current task
+
+            Parameters
+                  full_data: bool | if True, return non-derivative file paths
             """
 
-            functional_path = os.path.join(self.bids_root,
-                                           f"sub-{self.sub_id}",
-                                           "func")
+            if full_data:
+                  functional_path = os.path.join(
+                        self.bids_root,
+                        f"sub-{self.sub_id}",
+                        "func")
+
+            else:
+                  functional_path = os.path.join(
+                        self.bids_root,
+                        "derivatives",
+                        "fmriprep",
+                        f"sub-{self.sub_id}",
+                        "func")
 
             pattern = os.path.join(functional_path, "**/*.tsv")
 
-            return [x for x in glob.glob(pattern, recursive=True) if self.task in x]
+            results = [
+                  x for x in glob.glob(pattern, recursive=True) 
+                  if self.task in x
+                  if "event" in x
+            ]
+
+            if full_data and len(results) == 0:
+                  print("WARNING: No events files found in derivatives...loading non-derivative data")
+
+                  functional_path = os.path.join(
+                        self.bids_root,
+                        f"sub-{self.sub_id}",
+                        "func")
+
+                  pattern = os.path.join(functional_path, "**/*.tsv")
+
+                  results = [
+                        x for x in glob.glob(pattern, recursive=True)
+                        if self.task in x
+                        if "event in x"
+                  ]
+
+
+            return results
 
 
 
@@ -263,8 +351,9 @@ class Build_Subject:
             return len(self.raw_bold)
 
 
+      ###########
 
-      # ---- Utility helpers
+    
       def _init_container(self):
             """
             Initializes container to store run-specific bold / event / confound info
