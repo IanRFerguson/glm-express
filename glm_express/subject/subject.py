@@ -1,7 +1,5 @@
 #!/bin/python3
-
-# ---- Imports
-from glm_express.subject.bids_pointer import Build_Subject
+from .bids_pointer import Build_Subject
 import os, json
 from time import sleep
 import pandas as pd
@@ -11,7 +9,10 @@ import nilearn.plotting as nip
 from nilearn.glm import first_level
 from nilearn.reporting import make_glm_report
 
-# ---- Object definition
+
+##########
+
+
 class Subject(Build_Subject):
       """
       Subject inherits all functions and attributes from the BIDSPointer class defined in this package. 
@@ -19,20 +20,26 @@ class Subject(Build_Subject):
       and users have the option to define their own design matrices as well.
       """
 
-      # ---- Class functions
-      def __init__(self, sub_id, task, bids_root, suppress=False, template_space="MNI152NLin2009",
-                  repetition_time=1., dummy_scans=0):
+      def __init__(self, sub_id: str, task: str, bids_root: os.path, suppress: bool=False, 
+                   template_space: str="MNI152NLin2009", repetition_time: float=1., 
+                   dummy_scans: int=0):
 
             # Inherits constructor from BIDSPointer
-            Build_Subject.__init__(self, sub_id=sub_id, task=task, bids_root=bids_root, suppress=suppress,
-                                   template_space=template_space, repetition_time=repetition_time,
-                                   dummy_scans=dummy_scans)
+            Build_Subject.__init__(
+                  self, sub_id=sub_id, 
+                  task=task, bids_root=bids_root, 
+                  suppress=suppress,
+                  template_space=template_space, 
+                  repetition_time=repetition_time,
+                  dummy_scans=dummy_scans
+            )
 
 
 
-      # ---- Modeling functions
-      def generate_design_matrix(self, run, non_steady_state=False, auto_block_regressors=False, 
-                                 motion_outliers=True, drop_fixation=True, a_comp_cor=True, t_comp_cor=True):
+      def generate_design_matrix(self, run: int, non_steady_state: bool=False, 
+                                 auto_block_regressors: bool=False, motion_outliers: bool=True, 
+                                 drop_fixation: bool=True, a_comp_cor: bool=True, 
+                                 t_comp_cor: bool=True) -> pd.DataFrame:
             """
             Builds a first level design matrix
 
@@ -47,8 +54,7 @@ class Subject(Build_Subject):
                   Pandas DataFrame object
             """
 
-            # -- Helpers
-            def aggregate_non_steady_state(length, dummy_value):
+            def aggregate_non_steady_state(length: int, dummy_value: int) -> list:
                   """
                   Creates a binary vector to serve as non_steady_state regressor
 
@@ -67,7 +73,8 @@ class Subject(Build_Subject):
                   return [1] * dummy_value + [0] * real_length
 
 
-            def block_regressor(DF):
+
+            def block_regressor(DF: pd.DataFrame) -> str:
                   """
                   Aggregates block and trial regressors (e.g., high_trust_perspective)
 
@@ -89,7 +96,7 @@ class Subject(Build_Subject):
 
 
 
-            def reorder_design_columns(DM):
+            def reorder_design_columns(DM: pd.DataFrame):
                   """
                   Moves Nilearn modeling regressors to the end of the design matrix
 
@@ -119,7 +126,9 @@ class Subject(Build_Subject):
                   return DM.loc[:, clean]
 
 
-            # === Model foundations ===
+            ##########
+
+            
             iso_container = self.bids_container[f'run-{run}']                                   # BIDS container for the current run
             events = pd.read_csv(iso_container['event'], sep='\t')                              # Load events file
             confounds = pd.read_csv(iso_container['confounds'], sep='\t')                       # Load fmriprep regressors
@@ -132,7 +141,9 @@ class Subject(Build_Subject):
             events = events.loc[:, voi]                                                         # Reduce 
             
 
-            # === Model parameters ===
+            ##########
+
+            
             n_scans = len(confounds)                                                            # Number of scans in the current run
             t_r = self.t_r                                                                      # Repitition time
             frame_times = np.arange(n_scans) * t_r                                              # Volume acquisition sequence
@@ -208,9 +219,9 @@ class Subject(Build_Subject):
 
 
 
-      def first_level_design(self, non_steady_state=False, auto_block_regressors=False,
-                            motion_outliers=True, drop_fixation=True, verbose=True, a_comp_cor=True,
-                            t_comp_cor=True):
+      def first_level_design(self, non_steady_state: bool=False, auto_block_regressors: bool=False,
+                            motion_outliers: bool=True, drop_fixation: bool=True, verbose: bool=True, 
+                            a_comp_cor: bool=True, t_comp_cor: bool=True) -> list:
             """
             Compiles one design matrix per functional run
 
@@ -248,12 +259,14 @@ Temporal noise components:\t\t{t_comp_cor}
                   run = k+1
 
                   # Generate design matrix given the input parameters
-                  matrix = self.generate_design_matrix(run, non_steady_state=non_steady_state,
-                                                       auto_block_regressors=auto_block_regressors, 
-                                                       motion_outliers=motion_outliers, 
-                                                       drop_fixation=drop_fixation,
-                                                       a_comp_cor=a_comp_cor,
-                                                       t_comp_cor=t_comp_cor)
+                  matrix = self.generate_design_matrix(
+                        run, non_steady_state=non_steady_state,
+                        auto_block_regressors=auto_block_regressors, 
+                        motion_outliers=motion_outliers, 
+                        drop_fixation=drop_fixation,
+                        a_comp_cor=a_comp_cor,
+                        t_comp_cor=t_comp_cor
+                  )
 
                   # Output filename
                   filename = f'sub-{self.sub_id}_task-{self.task}_run-{run}_design-matrix.jpg'
@@ -270,7 +283,8 @@ Temporal noise components:\t\t{t_comp_cor}
             return matrices
 
 
-      def _default_contrasts(self):
+
+      def _default_contrasts(self) -> dict:
             """
             Creates trial-wise contrast map to feed into first-level GLM
 
@@ -295,7 +309,9 @@ Temporal noise components:\t\t{t_comp_cor}
 
 
 
-      def _run_contrast(self, glm, contrast, title, output_type, smoothing, plot_brains=False, plot_type="stat"):
+      def _run_contrast(self, glm: first_level.FirstLevelModel, contrast: str, 
+                        title: str, output_type: str, smoothing: float, 
+                        plot_brains: bool=False, plot_type: str="stat"):
             """
             Linear contrast based on first-level GLM. NifTi output is always saved, stat maps are conditional
 
@@ -306,6 +322,7 @@ Temporal noise components:\t\t{t_comp_cor}
                   output_type: str | Must be in ['condition', 'contrast']
                   smoothing: float | Smoothing kernel from GLM
                   plot_brains: boolean | if True, stat maps and contrast reports are saved locally
+                  plot_type: str | 'stat' or 'glass'
             """
 
             # Remove any white space from contrast
@@ -340,33 +357,46 @@ Temporal noise components:\t\t{t_comp_cor}
             if plot_brains:
 
                   # Formatted output paths
-                  stat_output = f'{plot_base}/sub-{self.sub_id}_{output_type}-{title}_smoothing-{kernel}mm_plot-stat-map.png'
-                  glass_output = f'{plot_base}/sub-{self.sub_id}_{output_type}-{title}_smoothing-{kernel}mm_plot-glass-map.png'
-                  report_output = f'{plot_base}/sub-{self.sub_id}_{output_type}-{title}_smoothing-{kernel}mm_contrast-summary.html'
+                  base_output = f"{plot_base}/sub-{self.sub_id}_{output_type}-{title}_smoothing-{kernel}"
+
+                  stat_output = f'{base_output}mm_plot-stat-map.png'
+                  glass_output = f'{base_output}mm_plot-glass-map.png'
+                  report_output = f'{base_output}mm_contrast-summary.html'
 
                   # Plot stat map
                   if plot_type == "stat":
-                        nip.plot_stat_map(z_map, threshold=2.3, colorbar=False, draw_cross=False,
-                                          display_mode='ortho', title=title,
-                                          output_file=stat_output)
+                        nip.plot_stat_map(
+                              z_map, 
+                              threshold=2.3, 
+                              colorbar=False, 
+                              draw_cross=False,
+                              display_mode='ortho', 
+                              title=title,
+                              output_file=stat_output)
 
                   elif plot_type == "glass":
-                        nip.plot_glass_brain(z_map, threshold=2.3, plot_abs=False,
-                                             display_mode="lyrz", title=title,
-                                             output_file=glass_output)
+                        nip.plot_glass_brain(
+                              z_map, 
+                              threshold=2.3, 
+                              plot_abs=False,
+                              display_mode="lyrz", 
+                              title=title,
+                              output_file=glass_output)
 
                   # Make GLM report
-                  make_glm_report(model=glm, contrasts=contrast,
-                                plot_type='glass').save_as_html(report_output)
+                  make_glm_report(
+                        model=glm, 
+                        contrasts=contrast,
+                        plot_type='glass').save_as_html(report_output)
 
 
 
-      def run_first_level_glm(self, conditions=True, contrasts=True, smoothing=8., 
-                              plot_brains=True, user_design_matrices=None,
-                              non_steady_state=False, auto_block_regressors=False,
-                              motion_outliers=True, drop_fixation=True, verbose=True, 
-                              plot_type="stat", a_comp_cor=True, t_comp_cor=True):
-
+      def run_first_level_glm(self, conditions: bool=True, contrasts: bool=True, smoothing: float=8., 
+                              plot_brains: bool=True, user_design_matrices: list=None,
+                              non_steady_state: bool=False, auto_block_regressors: bool=False,
+                              motion_outliers: bool=True, drop_fixation: bool=True, 
+                              verbose: bool=True, plot_type: str="stat", a_comp_cor: bool=True, 
+                              t_comp_cor: bool=True):
             """
             Instantiates and fits a FirstLevelModel GLM object, compiles condition and contrast z-maps
 
@@ -383,12 +413,11 @@ Temporal noise components:\t\t{t_comp_cor}
                   plot_type: str | stat or glass
             """
 
-            # === Define DMs and contrasts ===
             # Users have the option of specifying their own design matrices if they like
             if user_design_matrices is not None:
                   matrices = user_design_matrices
 
-                  print("\n== PLEASE NOTE: We assume you have provided deisgn matrices in order (e.g., run-1 == first matrix)\n\n")
+                  print("\n== PLEASE NOTE: We assume you have provided deisgn matrices in order (i.e,., run-1 == first matrix)\n\n")
 
                   for index, matrix in enumerate(matrices):
                         filename = f"sub-{self.sub_id}_task-{self.task}_user-defined-matrix_run-{index+1}.jpg"

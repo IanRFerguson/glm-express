@@ -1,13 +1,11 @@
 #!/bin/python3
-
-# --- Imports
-from glm_express.rest.resting_state import RestingState
+from .resting_state import RestingState
 from time import sleep
 import numpy as np
 import os
 
+##########
 
-# --- Object definition
 class DevelopmentalRS(RestingState):
       """
       About DevelopmentalRS

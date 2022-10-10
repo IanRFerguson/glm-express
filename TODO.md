@@ -1,11 +1,14 @@
 # Features to Include
 
+### Global
+
+
 ### Subject
 
 * Add `surf` option for plotting
-* Include demolition option in constructor (to remove existing data)
 
 ### GroupLevel
 
+* `Nilearn` `make_second....dm` implicitly builds intercept column, don't include manually
 
 ### RestingState

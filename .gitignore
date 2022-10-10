@@ -1,7 +1,14 @@
+# -- General
 *.DS_Store
 */*checkpoint.ipynb
 *.pyc
-glm_express/.ipynb_checkpoints/*
 build/
 dist/
+*ipynb*
+
+# -- GLMx
 glm_express.egg-info/
+glm_express/_demo/
+glm_express/_setup/
+glm_express/nilearn_cache/
+glm_express/.ipynb_checkpoints/*
