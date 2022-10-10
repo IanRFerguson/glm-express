@@ -295,7 +295,22 @@ class GroupLevel:
             design_matrix = pd.DataFrame({'subject_label': subject_labels,
                                            'intercept': [direction] * len(subject_labels)})
 
-            return second_level.make_second_level_design_matrix(subject_labels, design_matrix)
+            try:
+                  return second_level.make_second_level_design_matrix(
+                        subject_labels, 
+                        design_matrix
+                  )
+
+            except Exception as e:
+                  print(f"EXCEPTION OCURRED @ SECOND LEVEL DESIGN MATRIX: {e}")
+                  print("Defaulting to generic design matrix, consider supplying your own matrix")
+
+                  dummy_matrix = pd.DataFrame({'subject_label': subject_labels})
+
+                  return second_level.make_second_level_design_matrix(
+                        subject_labels,
+                        dummy_matrix
+                  )
 
 
 
