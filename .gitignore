@@ -4,6 +4,7 @@
 *.pyc
 build/
 dist/
+*ipynb*
 
 # -- GLMx
 glm_express.egg-info/
