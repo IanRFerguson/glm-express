@@ -1,28 +1,24 @@
 #!/bin/python3
-
-"""
-Usage Notes
-
-* The TEMPLATE SPACE attribute is hard-coded ... override this with set_template_space()
-* TR is hard-coded at 1. ... override this with set_tr()
-* DUMMY SCANS are hard-coded at 2 ... override this with set_dummy_scans()
-"""
-
-# ---- Imports
-from glm_express.build_info.build_task_info import build_task_info, build_dataset_description
+from ..utils.general_utils import build_dataset_description
+from ..utils.wrapper import build_task_info
 import os, json, pathlib, glob
 import pandas as pd
 from bids import BIDSLayout
 
 
-# ---- Object definition
+##########
+
+
 class Build_Subject:
-      def __init__(self, sub_id, task, bids_root='./bids', suppress=False, template_space="MNI152NLin2009c",
-                  dummy_scans=0, repetition_time=1.):
-            """
-            BIDSPointer is the foundation of the subject-level analysis pipeline. 
-            The subsequent Subject object inherits this class.
-            
+      """
+      Foundation of the subject-level analysis pipeline. 
+      The subsequent Subject object inherits this class.
+      """
+
+      def __init__(self, sub_id: str, task: str, bids_root: os.path='./bids', 
+                  suppress: bool=False, template_space: str="MNI152NLin2009c",
+                  dummy_scans: int=0, repetition_time: float=1., full_dataset: bool=False):
+            """      
             Parameters
                   sub_id: str or int | Subject ID corresponding to label in BIDS project
                   task: str | Task name corresponding to label in BIDS project
@@ -31,6 +27,7 @@ class Build_Subject:
                   template_space: str | Anatomical space derived from fmriprep (defaults to MNI152NLin6)
                   dummy_scans: int | Number of non-steady state volumes preceding functional runs
                   repetition_time: int | TR value derived from fMRI scanner
+                  full_datset: bool | if True, checks for non-derivative data
             """
 
             self.sub_id = str(sub_id)                                               # Unique subject ID from BIDS project
@@ -42,14 +39,18 @@ class Build_Subject:
             if not os.path.exists(os.path.join(self.bids_root, 'dataset_description.json')):
                   build_dataset_description(self.bids_root)
 
-            # === Validate BIDS input ===
+            # Validate user input
             bids = BIDSLayout(self.bids_root)
 
             if self.sub_id not in bids.get_subjects():
-                  raise OSError(f'{self.sub_id} not found in BIDS project ... valid: {bids.get_subjects()}')
+                  raise OSError(
+                        f'{self.sub_id} not found in BIDS project ... valid: {bids.get_subjects()}'
+                  )
 
             if self.task not in bids.get_tasks():
-                  raise OSError(f'{self.task} not found in BIDS project ... valid: {bids.get_tasks()}')
+                  raise OSError(
+                        f'{self.task} not found in BIDS project ... valid: {bids.get_tasks()}'
+                  )
 
 
             # === BIDS Paths === 
@@ -80,7 +81,8 @@ class Build_Subject:
                   print(str(self))
 
 
-      def __str__(self):
+
+      def __str__(self) -> dict:
             container = {'Subject ID': self.sub_id,
                         'Task': self.task,
                         "# of Functional Runs": self.functional_runs,
@@ -91,16 +93,20 @@ class Build_Subject:
             return json.dumps(container, indent=4)
 
 
+
       # ---- Setter methods
-      def set_tr(self, incoming):
+      def set_tr(self, incoming: float):
             self.t_r = incoming
 
 
-      def set_dummy_scans(self, incoming):
+
+      def set_dummy_scans(self, incoming: int):
             self.dummy_scans = incoming
 
 
-      def set_conditions(self, incoming):
+
+      def set_conditions(self, incoming: list):
+
             if not type(incoming) == list:
                   raise TypeError(
                         'Provide this function with a list of condition trial types from your events file'
@@ -109,11 +115,14 @@ class Build_Subject:
             self.conditions = incoming
 
 
-      def set_template_space(self, incoming):
+
+      def set_template_space(self, incoming: str):
             self.template_space = incoming
 
 
-      def set_confound_regressors(self, incoming):
+
+      def set_confound_regressors(self, incoming: list):
+            
             if not type(incoming) == list:
                   raise TypeError(
                         'Provide this function with a list of regressors derived from fmriprep'
@@ -122,17 +131,19 @@ class Build_Subject:
             self.confound_regressors = incoming
 
 
-      def set_design_contrasts(self, incoming):
+
+      def set_design_contrasts(self, incoming: dict):
             if not type(incoming) == dict:
                   raise TypeError(
-                        'Design contrasts need to be a dictionary in {"labeled_name": "column1 - column2" format'
+                        'Design contrasts need to be a dictionary in {"labeled_name": "column1 - column2"} format'
                   )
 
             self.contrasts = incoming
 
 
+
       # ---- Ecosystem helpers
-      def _validate_task_file(self):
+      def _validate_task_file(self) -> dict:
             """
             Builds task_information.json if it doesn't already exist
 
@@ -140,14 +151,12 @@ class Build_Subject:
                   Task-specific parameters from JSON file
             """
 
-            path = pathlib.Path(self.bids_root).parents[0]
-
-            # Relative path to task_information file
-            target = os.path.join(path, "task_information.json")
-
-            # Build task file if it doesn't exist
-            if not os.path.exists(target):
-                  build_task_info(self.bids_root)
+            # Builds task_information.json and returns path to file
+            target = build_task_info(
+                  self.bids_root,
+                  return_path=True,
+                  verbose=False
+            )
 
             # Open task file and return as dictionary
             with open(target) as incoming:
@@ -155,7 +164,7 @@ class Build_Subject:
 
 
 
-      def _output_tree(self):
+      def _output_tree(self) -> os.path:
             """
             Builds out subject's directory hierarchy for first-level modeling
 
@@ -176,13 +185,12 @@ class Build_Subject:
                         if not os.path.exists(temp):
                               pathlib.Path(temp).mkdir(parents=True, exist_ok=True)
 
-
             return primary
 
 
 
       # ---- Isolate data paths
-      def _isolate_raw_data(self):
+      def _isolate_raw_data(self) -> list:
             """
             Returns list of NifTi files directly off the scanner
             """
@@ -197,7 +205,7 @@ class Build_Subject:
 
 
 
-      def _isolate_events_files(self):
+      def _isolate_events_files(self) -> list:
             """
             Returns events files for current task
             """
@@ -212,7 +220,7 @@ class Build_Subject:
 
 
 
-      def _isolate_preprocessed_data(self):
+      def _isolate_preprocessed_data(self) -> list:
             """
             Returns list of NifTi files derived from fmriprep
             """
@@ -232,7 +240,7 @@ class Build_Subject:
 
 
 
-      def _isolate_confounds_files(self):
+      def _isolate_confounds_files(self) -> list:
             """
             Isolate relative paths to TSV files derived from fmriprep
             """
@@ -251,7 +259,7 @@ class Build_Subject:
 
 
 
-      def _derive_functional_runs(self):
+      def _derive_functional_runs(self) -> int:
             return len(self.raw_bold)
 
 
@@ -294,7 +302,7 @@ class Build_Subject:
 
 
 
-      def _build_container(self):
+      def _build_container(self) -> dict:
             """
             Populates BIDS Container object with information
 
@@ -325,11 +333,15 @@ class Build_Subject:
 
                   try:
                         current_prep = [x for x in preprocessed if run_value in x][0]
+                  
                   except IndexError:
-                        raise IndexError(f"No preprocessed bold runs for {run_value} ... check template space in fmriprep output [currently: {self.template_space}]")
+                        raise IndexError(
+                              f"No preprocessed bold runs for {run_value} ... check template space in fmriprep output [currently: {self.template_space}]"
+                        )
 
                   current_confound = [x for x in confounds if run_value in x][0]
 
+                  #####
 
                   # Build out run-wise dictionary
                   container[run_value] = {
@@ -349,24 +361,23 @@ class Build_Subject:
                   try:
                         container["all_events"].append(current_event)
                   except:
-                      container["all_events"] = [current_event]
+                        container["all_events"] = [current_event]
 
                   try:
-                      container["all_preprocessed_bold"].append(current_prep)
+                        container["all_preprocessed_bold"].append(current_prep)
                   except:
-                      container["all_preprocessed_bold"] = [current_prep]
+                        container["all_preprocessed_bold"] = [current_prep]
 
                   try:
                         container["all_confounds"].append(current_confound)
                   except:
                         container["all_confounds"] = [current_confound]
                   
-                  
             return container
 
 
 
-      def load_events(self, run='ALL'):
+      def load_events(self, run='ALL') -> pd.DataFrame:
             """
             Loads events file (or files!) in a Pandas DataFrame
 
@@ -422,7 +433,7 @@ class Build_Subject:
 
 
 
-      def load_confounds(self, run='ALL'):
+      def load_confounds(self, run='ALL') -> pd.DataFrame:
             """
             Loads confounds into a Pandas DataFrame object
 
