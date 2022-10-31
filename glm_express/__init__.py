@@ -7,8 +7,9 @@ to first- and second-level modeling of functional neuroimaging data
 """
 
 import warnings
-warnings.simplefilter(action='ignore', category=FutureWarning)
-warnings.simplefilter(action='ignore', category=UserWarning)
+
+warnings.simplefilter(action="ignore", category=FutureWarning)
+warnings.simplefilter(action="ignore", category=UserWarning)
 
 __version__ = "2.0.3"
 

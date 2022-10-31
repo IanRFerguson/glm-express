@@ -11,620 +11,679 @@ from nilearn.maskers import NiftiLabelsMasker, NiftiMapsMasker
 from nilearn.connectome import ConnectivityMeasure
 from sklearn.covariance import GraphicalLassoCV
 
+
 ##########
 
+
 class RestingState(Build_RS):
-      """
-      RestingState is optimized to model functional and structural connectivity
-      in a preprocessed resting state fMRI scan.
-      """
+    """
+    RestingState is optimized to model functional and structural connectivity
+    in a preprocessed resting state fMRI scan.
+    """
 
-      # -- Constructor
-      def __init__(self, sub_id, task="rest", bids_root="./bids", suppress=False, 
-                   template_space="MNI152NLin2009"):
+    # -- Constructor
+    def __init__(
+        self,
+        sub_id: str,
+        task: str = "rest",
+        bids_root: os.path = "./bids",
+        suppress: bool = False,
+        template_space: str = "MNI152NLin2009",
+    ):
 
-            # Inherits constructor from Build_RS object
-            Build_RS.__init__(self, sub_id=sub_id, task=task, 
-                              bids_root=bids_root, suppress=suppress, 
-                              template_space=template_space)
-            
-            self.mask_path = os.path.join(self.bids_root, "derivatives/nilearn_masks")
+        # Inherits constructor from Build_RS object
+        Build_RS.__init__(
+            self,
+            sub_id=sub_id,
+            task=task,
+            bids_root=bids_root,
+            suppress=suppress,
+            template_space=template_space,
+        )
 
-            if not os.path.exists(self.mask_path):
-                  pathlib.Path(self.mask_path).mkdir(exist_ok=True, parents=True)
+        self.mask_path = os.path.join(self.bids_root, "derivatives/nilearn_masks")
 
+        if not os.path.exists(self.mask_path):
+            pathlib.Path(self.mask_path).mkdir(exist_ok=True, parents=True)
 
+    def pull_msdl_atlas(self):
+        """
+        Wraps nilearn.datasets.fetch_atlas_msdl function
+        """
 
-      # -- Nilearn dataset helpers
-      def pull_msdl_atlas(self):
-            """
-            Wraps nilearn.datasets.fetch_atlas_msdl function
-            """
+        pull = datasets.fetch_atlas_msdl(data_dir=self.mask_path)
 
-            pull = datasets.fetch_atlas_msdl(data_dir=self.mask_path)
+        return pull.maps, pull.labels
 
-            return pull.maps, pull.labels
+    def plot_correlation_matrix(
+        self,
+        matrix: np.array,
+        labels: list,
+        run: int = None,
+        vmin: float = -1.0,
+        vmax: float = 1.0,
+        save_local: bool = True,
+        show_plot: bool = False,
+        override_range: bool = False,
+        custom_title: str = None,
+        lower_triangle: bool = False,
+    ):
+        """
+        Custom correlation matrix function
 
+        Parameters
+              matrix: np.array | Correlation matrix derived from time series data
+              labels: list | Region or connectome labels from atlas
+              run: str or int | Run value from BIDS project
+              vmin: numeric | Minimum value to plot in correlation matrix
+              vmax: numeric | Maximum value to plot in correlation matrix
+              save_local: Boolean | if True, matrix is saved to subject output
+              show_plot:  Boolean | if True, plot is printed to the console
+              override_range:  Boolean | if True, vmin and vmax are ignored
+              custom_title: str (optional)
+              lower_triangle: Boolean | if True, only bottom triangle of matrix is printed
+        """
 
+        if run is None and custom_title is None:
+            raise ValueError("You must provide a run number OR custom title")
 
-      # -- Plotting functions
-      def plot_correlation_matrix(self, matrix, labels, run=None, vmin=-1., vmax=1.,
-                                  save_local=True, show_plot=False, override_range=False,
-                                  custom_title=None, lower_triangle=False):
-            """
-            Custom correlation matrix function
+        if custom_title:
+            title = custom_title
 
-            Parameters
-                  matrix: np.array | Correlation matrix derived from time series data
-                  labels: list | Region or connectome labels from atlas
-                  run: str or int | Run value from BIDS project
-                  vmin: numeric | Minimum value to plot in correlation matrix
-                  vmax: numeric | Maximum value to plot in correlation matrix
-                  save_local: Boolean | if True, matrix is saved to subject output
-                  show_plot:  Boolean | if True, plot is printed to the console
-                  override_range:  Boolean | if True, vmin and vmax are ignored
-                  custom_title: str (optional)
-                  lower_triangle: Boolean | if True, only bottom triangle of matrix is printed
-            """
-
-            if run is None and custom_title is None:
-                 raise ValueError(
-                     "You must provide a run number OR custom title")
-
-            if custom_title:
-                 title = custom_title
-
-            else:
-                  if run == "ALL":
-                       # Format plot title
-                       title = f"sub-{self.sub_id}_aggregated-matrix"
-
-                  else:
-                       # Format plot title
-                       title = f"sub-{self.sub_id}_run-{run}"
-
-            if lower_triangle:
-                 mask = np.triu(np.ones_like(matrix))
-            else:
-                 mask = None
-
-            # Instantiate matplotlib canvas
-            plt.figure(figsize=(12, 10))
-
-            # Fill diagonal with zeroes
-            np.fill_diagonal(matrix, 0)
-
-            # Include vmin and vmax
-            if not override_range:
-                  sns.heatmap(matrix,
-                              cmap="RdBu_r",
-                              vmin=vmin,
-                              vmax=vmax,
-                              xticklabels=labels,
-                              yticklabels=labels,
-                              mask=mask)
-
-            # Ignore vmin and vmax
-            else:
-                  sns.heatmap(matrix,
-                              cmap="RdBu_r",
-                              xticklabels=labels,
-                              yticklabels=labels,
-                              mask=mask)
-
-            plt.title(title)
-
-            # Save locally
-            if save_local:
-                  output_name = os.path.join(self.first_level_output,
-                                             "plots",
-                                             f"{title}.jpg")
-
-                  plt.savefig(output_name)
-
-            # Print plot to console
-            if show_plot:
-                 plt.show()
-            else:
-                 plt.close()
-
-
-
-      def plot_connectomes(self, matrix, atlas_map, run=None, save_local=False,
-                           show_plot=False, display_mode="lyrz",
-                           custom_title=None, custom_output_name=None):
-            """
-            Plots connectome map in a glass brain
-
-            Parameters
-                  matrix:  np.ndarray | Correlation matrix derived from helper function
-                  run:  str or int | Functional run derived from BIDS project
-                  atlas_map:  NifTi image or path to NifTi image
-                  save_local:  Boolean | if True, connectome plot is saved locally
-                  show_plot:  Boolean | if True, plot is printed to the console
-                  display_mode: str | Defaults to Left Y Right Z
-                  custom_title: str | Overwrites the automated plot title
-                  custom_output_name: str | Overwrites the automated output name
-            """
-
-            if run is None and custom_title is None:
-                 raise ValueError()
-
-            if run is None and custom_output_name is None:
-                 raise ValueError()
-
-            # -- Title definition
-            if custom_title is not None:
-                 title = custom_title
+        else:
+            if run == "ALL":
+                # Format plot title
+                title = f"sub-{self.sub_id}_aggregated-matrix"
 
             else:
-                  if run == "ALL":
-                       title = f"sub-{self.sub_id}_aggregated-matrix"
+                # Format plot title
+                title = f"sub-{self.sub_id}_run-{run}"
 
-                  else:
-                       title = f"sub-{self.sub_id}_run-{run}"
+        if lower_triangle:
+            mask = np.triu(np.ones_like(matrix))
+        else:
+            mask = None
 
-            # -- Output name definition
-            if custom_output_name is not None:
-                 output_name = f"{custom_output_name}.jpg"
+        # Instantiate matplotlib canvas
+        plt.figure(figsize=(12, 10))
+
+        # Fill diagonal with zeroes
+        np.fill_diagonal(matrix, 0)
+
+        # Include vmin and vmax
+        if not override_range:
+            sns.heatmap(
+                matrix,
+                cmap="RdBu_r",
+                vmin=vmin,
+                vmax=vmax,
+                xticklabels=labels,
+                yticklabels=labels,
+                mask=mask,
+            )
+
+        # Ignore vmin and vmax
+        else:
+            sns.heatmap(
+                matrix, cmap="RdBu_r", xticklabels=labels, yticklabels=labels, mask=mask
+            )
+
+        plt.title(title)
+
+        # Save locally
+        if save_local:
+            output_name = os.path.join(self.first_level_output, "plots", f"{title}.jpg")
+
+            plt.savefig(output_name)
+
+        # Print plot to console
+        if show_plot:
+            plt.show()
+        else:
+            plt.close()
+
+    def plot_connectomes(
+        self,
+        matrix: np.array,
+        atlas_map,
+        run: int = None,
+        save_local: bool = False,
+        show_plot: bool = False,
+        display_mode: str = "lyrz",
+        custom_title: str = None,
+        custom_output_name: str = None,
+    ):
+        """
+        Plots connectome map in a glass brain
+
+        Parameters
+              matrix:  np.ndarray | Correlation matrix derived from helper function
+              run:  str or int | Functional run derived from BIDS project
+              atlas_map:  NifTi image or path to NifTi image
+              save_local:  Boolean | if True, connectome plot is saved locally
+              show_plot:  Boolean | if True, plot is printed to the console
+              display_mode: str | Defaults to Left Y Right Z
+              custom_title: str | Overwrites the automated plot title
+              custom_output_name: str | Overwrites the automated output name
+        """
+
+        if run is None and custom_title is None:
+            raise ValueError()
+
+        if run is None and custom_output_name is None:
+            raise ValueError()
+
+        # -- Title definition
+        if custom_title is not None:
+            title = custom_title
+
+        else:
+            if run == "ALL":
+                title = f"sub-{self.sub_id}_aggregated-matrix"
 
             else:
-                  if run == "ALL":
-                       output_name = f"sub-{self.sub_id}_aggregated-matrix-glass-brain.jpg"
+                title = f"sub-{self.sub_id}_run-{run}"
 
-                  else:
-                       output_name = f"sub-{self.sub_id}_run-{run}_connectome-glass-brain.jpg"
+        # -- Output name definition
+        if custom_output_name is not None:
+            output_name = f"{custom_output_name}.jpg"
 
+        else:
+            if run == "ALL":
+                output_name = f"sub-{self.sub_id}_aggregated-matrix-glass-brain.jpg"
+
+            else:
+                output_name = f"sub-{self.sub_id}_run-{run}_connectome-glass-brain.jpg"
+
+        try:
+            # Gets coordinates from 4D probabilistic atlas
+            coordinates = nip.find_probabilistic_atlas_cut_coords(maps_img=atlas_map)
+        except:
+            # Get coordinates from 3D atlas
+            coordinates = nip.find_parcellation_cut_coords(labels_img=atlas_map)
+
+        # Save plot to output directory
+        if save_local:
+
+            # Relative path to output filename
+            output_path = os.path.join(self.first_level_output, "plots", output_name)
+
+            nip.plot_connectome(
+                matrix,
+                coordinates,
+                title=title,
+                output_file=output_path,
+                display_mode=display_mode,
+            )
+
+            plt.close()
+
+        # Display plot
+        if show_plot:
+            nip.plot_connectome(
+                matrix, coordinates, title=title, display_mode=display_mode
+            )
+
+            nip.show()
+
+        else:
+            # This is hacky but effectively suppresses output
             try:
-                  # Gets coordinates from 4D probabilistic atlas
-                  coordinates = nip.find_probabilistic_atlas_cut_coords(
-                        maps_img=atlas_map
-                  )
+                nip.plot_connectome(matrix, coordinates, display_mode=None)
+                plt.close()
             except:
-                  # Get coordinates from 3D atlas
-                  coordinates = nip.find_parcellation_cut_coords(
-                        labels_img=atlas_map
-                  )
+                pass
 
-            # Save plot to output directory
-            if save_local:
+    def _compile_single_image(self):
+        """
+        This helper streamlines NifTi image concatenation, so
+        analyses do not have be weighted or averaged
 
-                  # Relative path to output filename
-                  output_path = os.path.join(self.first_level_output, "plots", output_name)
+        Returns
+              One NifTi image, One long DataFrame of confound regressors
+        """
 
-                  nip.plot_connectome(matrix, coordinates, title=title,
-                                      output_file=output_path, display_mode=display_mode)
+        from nibabel.funcs import concat_images
+        import pandas as pd
 
-                  plt.close()
+        images = []
 
+        for run in range(1, len(self.preprocessed_runs) + 1):
+            images.append(self.bids_container[f"run-{run}"]["preprocessed_bold"])
 
-            # Display plot
-            if show_plot:
-                  nip.plot_connectome(matrix, coordinates, title=title,
-                                      display_mode=display_mode)
+        single_run = concat_images(images, axis=3)
+        confounds = self.load_confounds(run="ALL")
 
-                  nip.show()
+        return single_run, confounds
 
-            else:
-                  # This is hacky but effectively suppresses output
-                  try:
-                        nip.plot_connectome(matrix, coordinates, display_mode=None)
-                        plt.close()
-                  except:
-                       pass
+    def extract_time_series(
+        self,
+        run: int = "ALL",
+        method: str = "maps",
+        atlas_to_use: np.array = None,
+        labels_to_use: list = None,
+        standardize: bool = True,
+        verbose: bool = True,
+        regress_motion_outliers: bool = True,
+        a_comp_cor: bool = True,
+        t_comp_cor: bool = True,
+    ):
+        """
+        TODO: Add docstring
+        """
 
+        # ==== Validate user input ====
+        if method not in ["maps", "labels"]:
+            raise ValueError(
+                f"ERROR: {method} is invalid input ... valid: ['maps', 'labels']"
+            )
 
+        # -- Default to MSDL atlas if none is provided
+        if atlas_to_use is None:
+            print("NOTE: Defaulting to MSDL atlas")
+            atlas_to_use, labels_to_use = self.pull_msdl_atlas()
 
-      # -- Masking functions
-      def _compile_single_image(self):
-            """
-            This helper streamlines NifTi image concatenation, so
-            analyses do not have be weighted or averaged
+        # -- If atlas IS provided and labels ARE NOT
+        elif atlas_to_use is not None and labels_to_use is None:
+            raise ValueError(
+                "ERROR: If providing a reference atlas you MUST provide a list of corresponding labels"
+            )
 
-            Returns
-                  One NifTi image, One long DataFrame of confound regressors
-            """
+        all_regressors = self.confound_regressor_names
 
-            from nibabel.funcs import concat_images
-            import pandas as pd
+        # -- Check modeling parameters
+        if regress_motion_outliers:
+            all_regressors = all_regressors + [
+                x for x in self.load_confounds(run=run).columns if "motion_outlier" in x
+            ]
 
-            images = []
+        if a_comp_cor:
+            all_regressors += [
+                x for x in self.load_confounds(run=run).columns if "a_comp_cor" in x
+            ]
 
-            for run in range(1, len(self.preprocessed_runs)+1):
-                  images.append(self.bids_container[f"run-{run}"]["preprocessed_bold"])
+        if t_comp_cor:
+            all_regressors += [
+                x for x in self.load_confounds(run=run).columns if "t_comp_cor" in x
+            ]
 
-            single_run = concat_images(images, axis=3)
-            confounds = self.load_confounds(run="ALL")
+        if verbose:
+            print(
+                f"Regressing out the following: {json.dumps(all_regressors, indent=4)}"
+            )
 
-            return single_run, confounds
+        # -- User defined concatenated runs
+        if run == "ALL":
 
+            bold, confounds = self._compile_single_image()
 
+            confounds.fillna(0, inplace=True)
 
-      def extract_time_series(self, run="ALL", method="maps", atlas_to_use=None, labels_to_use=None, 
-                              standardize=True, verbose=True, regress_motion_outliers=True,
-                              a_comp_cor=True, t_comp_cor=True):
-            """
-            TODO: Add docstring
-            """
+        # -- Single run
+        elif run != "ALL":
+            # Isolate BIDS run
+            bold = self.bids_container[f"run-{run}"]["preprocessed_bold"]
 
-            # ==== Validate user input ====
-            if method not in ['maps', 'labels']:
-                  raise ValueError(
-                        f"ERROR: {method} is invalid input ... valid: ['maps', 'labels']"
-                  )
+            # Isolate confound regressors
+            confounds = (
+                self.load_confounds(run=run)
+                .loc[:, self.confound_regressor_names]
+                .fillna(0)
+            )
 
-            # -- Default to MSDL atlas if none is provided
-            if atlas_to_use is None:
-                  print("NOTE: Defaulting to MSDL atlas")
-                  atlas_to_use, labels_to_use = self.pull_msdl_atlas()
+        # Define verbosity
+        if verbose:
+            value = 5
 
-            # -- If atlas IS provided and labels ARE NOT
-            elif atlas_to_use is not None and labels_to_use is None:
-                  raise ValueError(
-                        "ERROR: If providing a reference atlas you MUST provide a list of corresponding labels"
-                  )
+        else:
+            value = 0
 
+        # ==== Run desired masker ====
+        if method == "maps":
+            masker = NiftiMapsMasker(
+                maps_img=atlas_to_use, standardize=standardize, verbose=value
+            )
 
-            all_regressors = self.confound_regressor_names
+        elif method == "labels":
+            masker = NiftiLabelsMasker(
+                labels_img=atlas_to_use, standardize=standardize, verbose=value
+            )
 
+        # -- Fit bold run(s) to masker object
+        time_series = masker.fit_transform(bold, confounds=confounds)
 
-            # -- Check modeling parameters
-            if regress_motion_outliers:
-                  all_regressors = all_regressors + \
-                        [x for x in self.load_confounds(run=run).columns 
-                        if "motion_outlier" in x]
+        return time_series
 
-            if a_comp_cor:
-                  all_regressors += [x for x in self.load_confounds(run=run).columns if "a_comp_cor" in x]
+    def matrix_from_masker(
+        self,
+        run: int = "ALL",
+        method: str = "maps",
+        atlas_to_use: np.array = None,
+        labels_to_use: list = None,
+        standardize: bool = True,
+        save_matrix_output: bool = False,
+        save_plots: bool = False,
+        show_plots: bool = True,
+        return_array: bool = True,
+        verbose: bool = True,
+        a_comp_cor: bool = True,
+        t_comp_cor: bool = True,
+        lower_triangle: bool = False,
+        custom_output_name: bool = False,
+    ):
+        """
+        Creates a correlation matrix derived from time series
 
-            if t_comp_cor:
-                  all_regressors += [x for x in self.load_confounds(run=run).columns if "t_comp_cor" in x]
+        Parameters
+              run:  str or int | Functional run from BIDS project; if ALL, functional runs are concatenated
+              method: str | Currently, 'maps' or 'labels' ... determines which masker to use
+              atlas_to_use:  Relative path to NifTi mask (defaults to native MSDL atlas)
+              labels_to_use:  List of labels to feed to the correlation matrix
+              standardize:  Boolean | if True, the extracted signal is z-transformed
+              save_matrix_output:  Boolean | if True, correlation matrix is saved to subject folder
+              save_plots:  Boolean | if True, correlation matrix and connectome is saved locally
+              show_plots:  Boolean | if True, plots are displayed to the console
+              return_array:  Boolean | if True, array is returned and can be assigned to variable
+              verbose:  Boolean | if True, method mechanics are printed to the console
+              a_comp_cor: Boolean | if True, anatomical noise components are regressed out
+              t_comp_cor: Boolean | if True, temporal noise components are regressed out
+              lower_triangle: Boolean | if True, only lower triangle of correlation matrix is rendered
+              custom_output_name: Boolean | if True, output .npy file has custom naming convention
 
-            if verbose:
-                  print(f"Regressing out the following: {json.dumps(all_regressors, indent=4)}")
+        Returns
+              If return_array == True, returns correlation matrix
+        """
 
+        # -- Sanity checks
+        if custom_output_name:
+            save_matrix_output = True
 
-            # -- User defined concatenated runs
-            if run == "ALL":
+        # -- Default to MSDL atlas if none is provided
+        if atlas_to_use is None:
+            print("NOTE: Defaulting to MSDL atlas")
+            atlas_to_use, labels_to_use = self.pull_msdl_atlas()
 
-                  bold, confounds = self._compile_single_image()
+        # -- If atlas IS provided and labels ARE NOT
+        elif atlas_to_use is not None and labels_to_use is None:
+            raise ValueError(
+                "ERROR: If providing a reference atlas you MUST provide a list of corresponding labels"
+            )
 
-                  confounds.fillna(0, inplace=True)
+        time_series = self.extract_time_series(
+            run=run,
+            method=method,
+            atlas_to_use=atlas_to_use,
+            labels_to_use=labels_to_use,
+            standardize=standardize,
+            verbose=verbose,
+            a_comp_cor=a_comp_cor,
+            t_comp_cor=t_comp_cor,
+        )
 
+        # -- Fit bold run(s) to masker object
+        correlation_transformer = ConnectivityMeasure(kind="correlation")
+        correlation_matrix = correlation_transformer.fit_transform([time_series])[0]
 
-            # -- Single run
-            elif run != "ALL":
-                  # Isolate BIDS run
-                  bold = self.bids_container[f"run-{run}"]["preprocessed_bold"]
+        # ==== Apply both plotting functions ====
+        if show_plots or save_plots:
+            self.plot_correlation_matrix(
+                correlation_matrix,
+                labels=labels_to_use,
+                run=run,
+                save_local=save_plots,
+                show_plot=show_plots,
+                lower_triangle=lower_triangle,
+            )
 
-                  # Isolate confound regressors
-                  confounds = self.load_confounds(run=run).loc[:, self.confound_regressor_names].fillna(0)
+            self.plot_connectomes(
+                correlation_matrix,
+                run=run,
+                atlas_map=atlas_to_use,
+                save_local=save_plots,
+                show_plot=show_plots,
+            )
 
+        # Save matrix locally if user desires
+        if save_matrix_output:
 
-            # Define verbosity
-            if verbose:
-                  value = 5
-
-            else:
-                  value = 0
-
-
-            # ==== Run desired masker ====
-            if method == "maps":
-                  masker = NiftiMapsMasker(maps_img=atlas_to_use, 
-                                           standardize=standardize,
-                                           verbose=value)
-
-
-            elif method == "labels":
-                  masker = NiftiLabelsMasker(labels_img=atlas_to_use, 
-                                             standardize=standardize,
-                                             verbose=value)
-
-            # -- Fit bold run(s) to masker object
-            time_series = masker.fit_transform(bold, confounds=confounds)
-
-            return time_series
-
-
-
-      def matrix_from_masker(self, run="ALL", method="maps", atlas_to_use=None, 
-                             labels_to_use=None, standardize=True, save_matrix_output=False, 
-                             save_plots=False, show_plots=True, return_array=True, verbose=True,
-                             a_comp_cor=True, t_comp_cor=True, lower_triangle=False, custom_output_name=False):
-            """
-            Creates a correlation matrix derived from time series
-
-            Parameters
-                  run:  str or int | Functional run from BIDS project; if ALL, functional runs are concatenated
-                  method: str | Currently, 'maps' or 'labels' ... determines which masker to use
-                  atlas_to_use:  Relative path to NifTi mask (defaults to native MSDL atlas)
-                  labels_to_use:  List of labels to feed to the correlation matrix
-                  standardize:  Boolean | if True, the extracted signal is z-transformed
-                  save_matrix_output:  Boolean | if True, correlation matrix is saved to subject folder
-                  save_plots:  Boolean | if True, correlation matrix and connectome is saved locally
-                  show_plots:  Boolean | if True, plots are displayed to the console
-                  return_array:  Boolean | if True, array is returned and can be assigned to variable
-                  verbose:  Boolean | if True, method mechanics are printed to the console
-                  a_comp_cor: Boolean | if True, anatomical noise components are regressed out
-                  t_comp_cor: Boolean | if True, temporal noise components are regressed out
-                  lower_triangle: Boolean | if True, only lower triangle of correlation matrix is rendered
-                  custom_output_name: Boolean | if True, output .npy file has custom naming convention
-
-            Returns
-                  If return_array == True, returns correlation matrix
-            """
-
-            # -- Sanity checks
             if custom_output_name:
-                  save_matrix_output = True
+                filename = f"{custom_output_name}.npy"
 
-            # -- Default to MSDL atlas if none is provided
-            if atlas_to_use is None:
-                  print("NOTE: Defaulting to MSDL atlas")
-                  atlas_to_use, labels_to_use = self.pull_msdl_atlas()
+            else:
+                if run == "ALL":
+                    filename = f"sub-{self.sub_id}_task-{self.task}_aggregated.npy"
 
-            # -- If atlas IS provided and labels ARE NOT
-            elif atlas_to_use is not None and labels_to_use is None:
-                  raise ValueError(
-                        "ERROR: If providing a reference atlas you MUST provide a list of corresponding labels"
-                  )
+                else:
+                    filename = f"sub-{self.sub_id}_task-{self.task}_run-{run}_maps-masker-matrix.npy"
 
+            with open(
+                os.path.join(self.first_level_output, "models", filename), "wb"
+            ) as outgoing:
+                np.save(outgoing, correlation_matrix)
 
-            time_series = self.extract_time_series(run=run, 
-                                                   method=method,
-                                                   atlas_to_use=atlas_to_use,
-                                                   labels_to_use=labels_to_use,
-                                                   standardize=standardize,
-                                                   verbose=verbose,
-                                                   a_comp_cor=a_comp_cor,
-                                                   t_comp_cor=t_comp_cor)
-            
+        if return_array:
+            return correlation_matrix
 
-            # -- Fit bold run(s) to masker object
-            correlation_transformer = ConnectivityMeasure(kind="correlation")
-            correlation_matrix = correlation_transformer.fit_transform([time_series])[0]
+    def connectome_covariance(
+        self,
+        run: int = "ALL",
+        method: str = "maps",
+        atlas_to_use: np.array = None,
+        labels_to_use: list = None,
+        standardize: bool = True,
+        save_matrix_output: bool = False,
+        save_plots: bool = False,
+        show_plots: bool = True,
+        return_array: bool = True,
+        verbose: bool = True,
+        sparse_inverse: bool = True,
+        a_comp_cor: bool = True,
+        t_comp_cor: bool = True,
+        lower_triangle: bool = False,
+        custom_output_name: bool = False,
+    ):
+        """
+        Maps direct connections between regions using sparse inverse covariance estimator
 
+        Parameters
+              run:  str or int | Functional run from BIDS project; if ALL, functional runs are concatenated
+              method: str | Currently, 'maps' or 'labels' ... determines which masker to use
+              atlas_to_use:  Relative path to NifTi mask (defaults to native MSDL atlas)
+              labels_to_use:  List of labels to feed to the correlation matrix
+              standardize:  Boolean | if True, the extracted signal is z-transformed
+              save_matrix_output:  Boolean | if True, correlation matrix is saved to subject folder
+              save_plots:  Boolean | if True, correlation matrix and connectome is saved locally
+              show_plots:  Boolean | if True, plots are displayed to the console
+              return_array:  Boolean | if True, array is returned and can be assigned to variable
+              verbose:  Boolean | if True, method mechanics are printed to the console
+              sprase_inverse: Boolean | if True, estimator precision is used (else, estimator covariance is used)
+              a_comp_cor: Boolean | if True, anatomical noise components are regressed out
+              t_comp_cor: Boolean | if True, temporal noise components are regressed out
+              lower_triangle: Boolean | if True, only lower triangle of heatmap is rendered
+              custom_output_name: Boolean | if True, output .npy file has custom naming convention
 
-            # ==== Apply both plotting functions ====
-            if show_plots or save_plots:
-                  self.plot_correlation_matrix(correlation_matrix, 
-                                          labels=labels_to_use, 
-                                          run=run, 
-                                          save_local=save_plots, 
-                                          show_plot=show_plots,
-                                          lower_triangle=lower_triangle)
+        Returns
+              if save_matrix_output, matrix is saved to output directory
+        """
 
-                  self.plot_connectomes(correlation_matrix, 
-                                    run=run, 
-                                    atlas_map=atlas_to_use, 
-                                    save_local=save_plots, 
-                                    show_plot=show_plots)
+        # -- Sanity checks
+        if custom_output_name:
+            save_matrix_output = True
 
+        # -- Default to MSDL atlas if none is provided
+        if atlas_to_use is None:
+            print("NOTE: Defaulting to MSDL atlas")
+            atlas_to_use, labels_to_use = self.pull_msdl_atlas()
 
-            # Save matrix locally if user desires
-            if save_matrix_output:
+        time_series = self.extract_time_series(
+            run=run,
+            method=method,
+            atlas_to_use=atlas_to_use,
+            labels_to_use=labels_to_use,
+            standardize=standardize,
+            verbose=verbose,
+            a_comp_cor=a_comp_cor,
+            t_comp_cor=t_comp_cor,
+        )
 
-                  if custom_output_name:
-                        filename = f"{custom_output_name}.npy"
+        estimator = GraphicalLassoCV()
+        estimator.fit(time_series)
 
-                  else: 
-                        if run == "ALL":
-                              filename = f"sub-{self.sub_id}_task-{self.task}_aggregated.npy"
+        if run == "ALL":
+            formatted_run = "aggregated"
+        else:
+            formatted_run = f"run-{run}"
 
-                        else:
-                              filename = f"sub-{self.sub_id}_task-{self.task}_run-{run}_maps-masker-matrix.npy"
+        if sparse_inverse:
+            matrix_values = -estimator.precision_
+            c_title = f"sub-{self.sub_id}_{formatted_run}_sparse-inverse-covariance"
 
-                  with open(os.path.join(self.first_level_output, "models", filename), "wb") as outgoing:
-                        np.save(outgoing, correlation_matrix)
+        else:
+            matrix_values = estimator.covariance_
+            c_title = f"sub-{self.sub_id}_{formatted_run}_covariance"
 
-            if return_array:
-                  return correlation_matrix
+        # Plotting function
+        self.plot_correlation_matrix(
+            matrix_values,
+            labels=labels_to_use,
+            custom_title=c_title,
+            show_plot=show_plots,
+            save_local=save_plots,
+            lower_triangle=lower_triangle,
+        )
 
+        self.plot_connectomes(
+            matrix_values,
+            atlas_map=atlas_to_use,
+            save_local=save_plots,
+            show_plot=show_plots,
+            custom_title=c_title,
+            custom_output_name=c_title,
+        )
 
+        if save_matrix_output:
 
-      def connectome_covariance(self, run="ALL", method="maps", atlas_to_use=None, labels_to_use=None,
-                                standardize=True, save_matrix_output=False, save_plots=False,
-                                show_plots=True, return_array=True, verbose=True,
-                                sparse_inverse=True, a_comp_cor=True, t_comp_cor=True,
-                                lower_triangle=False, custom_output_name=False):
-            """
-            Maps direct connections between regions using sparse inverse covariance estimator
-
-            Parameters
-                  run:  str or int | Functional run from BIDS project; if ALL, functional runs are concatenated
-                  method: str | Currently, 'maps' or 'labels' ... determines which masker to use
-                  atlas_to_use:  Relative path to NifTi mask (defaults to native MSDL atlas)
-                  labels_to_use:  List of labels to feed to the correlation matrix
-                  standardize:  Boolean | if True, the extracted signal is z-transformed
-                  save_matrix_output:  Boolean | if True, correlation matrix is saved to subject folder
-                  save_plots:  Boolean | if True, correlation matrix and connectome is saved locally
-                  show_plots:  Boolean | if True, plots are displayed to the console
-                  return_array:  Boolean | if True, array is returned and can be assigned to variable
-                  verbose:  Boolean | if True, method mechanics are printed to the console
-                  sprase_inverse: Boolean | if True, estimator precision is used (else, estimator covariance is used)
-                  a_comp_cor: Boolean | if True, anatomical noise components are regressed out
-                  t_comp_cor: Boolean | if True, temporal noise components are regressed out
-                  lower_triangle: Boolean | if True, only lower triangle of heatmap is rendered
-                  custom_output_name: Boolean | if True, output .npy file has custom naming convention
-
-            Returns
-                  if save_matrix_output, matrix is saved to output directory
-            """
-
-            # -- Sanity checks
             if custom_output_name:
-                  save_matrix_output = True
 
-            # -- Default to MSDL atlas if none is provided
-            if atlas_to_use is None:
-                  print("NOTE: Defaulting to MSDL atlas")
-                  atlas_to_use, labels_to_use = self.pull_msdl_atlas()
+                # We want to overwrite any inadvertent file extensions the user supplies
+                custom_output_name = custom_output_name.split(".")[0].strip().lower()
 
-
-            time_series = self.extract_time_series(run=run, method=method, 
-                                                   atlas_to_use=atlas_to_use,
-                                                   labels_to_use=labels_to_use, 
-                                                   standardize=standardize,
-                                                   verbose=verbose,
-                                                   a_comp_cor=a_comp_cor,
-                                                   t_comp_cor=t_comp_cor)
-
-            estimator = GraphicalLassoCV()
-            estimator.fit(time_series)
-
-            if run == "ALL":
-                  formatted_run = "aggregated"
-            else:
-                  formatted_run = f"run-{run}"
-
-            if sparse_inverse:
-                  matrix_values = -estimator.precision_
-                  c_title = f"sub-{self.sub_id}_{formatted_run}_sparse-inverse-covariance"
+                filename = f"{custom_output_name}.npy"
 
             else:
-                  matrix_values = estimator.covariance_
-                  c_title = f"sub-{self.sub_id}_{formatted_run}_covariance"
+                filename = f"{c_title}.npy"
 
-            # Plotting function
-            self.plot_correlation_matrix(matrix_values, 
-                                         labels=labels_to_use, 
-                                         custom_title=c_title,
-                                         show_plot=show_plots, 
-                                         save_local=save_plots,
-                                         lower_triangle=lower_triangle)
+            # Save file locally
+            with open(
+                os.path.join(self.first_level_output, "models", filename), "wb"
+            ) as outgoing:
+                np.save(outgoing, matrix_values)
 
-            self.plot_connectomes(matrix_values, 
-                                  atlas_map=atlas_to_use, 
-                                  save_local=save_plots,
-                                  show_plot=show_plots, 
-                                  custom_title=c_title, 
-                                  custom_output_name=c_title)
+        if return_array:
+            return matrix_values
 
+    def load_correlation_matrix(self, array_id: str = None):
+        """
+        This function loads a stored `numpy` array from previously extracted
+        time series:
 
-            if save_matrix_output:
-                  
-                  if custom_output_name:
+        * If one matrix exists, it can be loaded without passing an argument
+        * If multiple matrices exist in the output directory, the user **MUST** provide input
+        to the `array_id` parameter
 
-                        # We want to overwrite any inadvertent file extensions the user supplies
-                        custom_output_name = custom_output_name.split(".")[0].strip().lower()
+        Parameters
+              `array_id`: str | Optional if only one correlation matrix exists in the output directory. This should
+              match only one correlation matrix, such that it can be identified via list comprehension
 
-                        filename = f"{custom_output_name}.npy"
+        Returns
+              numpy.ndarray
+        """
 
-                  else:
-                        filename = f"{c_title}.npy"
+        # Recursive search for Numpy files in output directory
+        pattern = os.path.join(self.first_level_output, "**/*.npy")
 
-                  # Save file locally
-                  with open(os.path.join(self.first_level_output, "models", filename), "wb") as outgoing:
-                        np.save(outgoing, matrix_values)
+        # List of relative paths to all Numpy files
+        all_matrices = [x for x in glob.glob(pattern, recursive=True)]
 
+        # CASE: Single array stored, we can return it directly
+        if len(all_matrices) == 1:
+            return np.load(all_matrices[0])
 
-            if return_array:
-                  return matrix_values
+        # CASE: Multiple arrays stored, user has provided target ID
+        elif len(all_matrices) > 1 and array_id is not None:
 
+            # Reduce to files that match target ID
+            check = [x for x in all_matrices if array_id in x.split("/")[-1]]
 
+            # If this was successful, only one array should be identified
+            if len(check) == 1:
+                return np.load(check[0])
 
-      def load_correlation_matrix(self, array_id=None):
-            """
-            This function loads a stored `numpy` array from previously extracted
-            time series:
+            # Oops! We have too many arrays to choose from
+            else:
+                raise ValueError(
+                    f"array_id: {array_id} is not descriptive enough ... {len(check)} arrays returned"
+                )
 
-            * If one matrix exists, it can be loaded without passing an argument
-            * If multiple matrices exist in the output directory, the user **MUST** provide input
-            to the `array_id` parameter
+        # # Oops! We have too many arrays to choose from
+        elif len(all_matrices) > 1 and array_id is None:
+            raise ValueError(
+                f"array_id: {array_id} is not descriptive enough ... {len(all_matrices)} arrays returned"
+            )
 
-            Parameters
-                  `array_id`: str | Optional if only one correlation matrix exists in the output directory. This should
-                  match only one correlation matrix, such that it can be identified via list comprehension
+    def _matrix_to_dataframe(
+        self,
+        incoming_matrix: np.array = None,
+        labels: list = None,
+        a_comp_cor: bool = True,
+        t_comp_cor: bool = True,
+    ):
+        """
+        IN DEVELOPMENT
 
-            Returns
-                  numpy.ndarray
-            """
+        Renders a one-dimensional Pandas DataFrame with all functional connection correlations mapped.
+        You can supply your own matrix and labels, or use the default MSDL atlas values
 
-            # Recursive search for Numpy files in output directory
-            pattern = os.path.join(self.first_level_output, "**/*.npy")
+        Parameters
+              incoming_matrix: np.ndarray | Defaults to None, in which case covariance matrix is produced
+              label_indices: List of functional regions to map onto correlation DF
+              a_comp_cor: Boolean | if True, anatomical noise components are included
+              t_comp_cor: Boolean | if True, temporal noise components are included
 
-            # List of relative paths to all Numpy files
-            all_matrices = [x for x in glob.glob(pattern, recursive=True)]
+        Returns
+              Pandas DataFrame
+        """
 
-            # CASE: Single array stored, we can return it directly
-            if len(all_matrices) == 1:
-                  return np.load(all_matrices[0])
+        if incoming_matrix is None:
+            incoming_matrix = self.connectome_covariance(
+                verbose=False,
+                a_comp_cor=a_comp_cor,
+                t_comp_cor=t_comp_cor,
+                show_plots=False,
+                save_plots=False,
+                save_matrix_output=False,
+                return_array=True,
+            )
 
-            # CASE: Multiple arrays stored, user has provided target ID
-            elif len(all_matrices) > 1 and array_id is not None:
+        if labels is None:
+            _, labels = self.pull_msdl_atlas()
 
-                  # Reduce to files that match target ID
-                  check = [x for x in all_matrices if array_id in x.split("/")[-1]]
+        wide_df = pd.DataFrame(incoming_matrix, index=labels, columns=labels)
 
-                  # If this was successful, only one array should be identified
-                  if len(check) == 1:
-                        return np.load(check[0])
+        output = {}
 
-                  # Oops! We have too many arrays to choose from
-                  else:
-                        raise ValueError(
-                              f"array_id: {array_id} is not descriptive enough ... {len(check)} arrays returned"
-                        )
+        for region_l in labels:
 
-            # # Oops! We have too many arrays to choose from
-            elif len(all_matrices) > 1 and array_id is None:
-                  raise ValueError(
-                        f"array_id: {array_id} is not descriptive enough ... {len(all_matrices)} arrays returned"
-                  )
+            for region_r in labels:
 
+                if region_l != region_r:
 
+                    if f"{region_r}_{region_l}" not in list(output.keys()):
 
-      def _matrix_to_dataframe(self, incoming_matrix=None, labels=None, a_comp_cor=True,
-                              t_comp_cor=True):
-            """
-            IN DEVELOPMENT
-            
-            Renders a one-dimensional Pandas DataFrame with all functional connection correlations mapped.
-            You can supply your own matrix and labels, or use the default MSDL atlas values
+                        key = f"{region_l}_{region_r}"
 
-            Parameters
-                  incoming_matrix: np.ndarray | Defaults to None, in which case covariance matrix is produced
-                  label_indices: List of functional regions to map onto correlation DF
-                  a_comp_cor: Boolean | if True, anatomical noise components are included
-                  t_comp_cor: Boolean | if True, temporal noise components are included
+                        value = wide_df.loc[region_l, region_r]
 
-            Returns
-                  Pandas DataFrame
-            """
+                        output[key] = value
 
-            if incoming_matrix is None:
-                  incoming_matrix = self.connectome_covariance(verbose=False,
-                                                               a_comp_cor=a_comp_cor,
-                                                               t_comp_cor=t_comp_cor,
-                                                               show_plots=False,
-                                                               save_plots=False,
-                                                               save_matrix_output=False,
-                                                               return_array=True)
-
-            if labels is None:
-                  _, labels = self.pull_msdl_atlas()
-
-
-            wide_df =  pd.DataFrame(incoming_matrix, 
-                                    index=labels, 
-                                    columns=labels)
-
-            output = {}
-
-            for region_l in labels:
-                  
-                  for region_r in labels:
-                        
-                        if region_l != region_r:
-
-                              if f"{region_r}_{region_l}" not in list(output.keys()):
-
-                                    key = f"{region_l}_{region_r}"
-
-                                    value = wide_df.loc[region_l, region_r]
-
-                                    output[key] = value
-
-
-            return pd.DataFrame(output, index=[0])
+        return pd.DataFrame(output, index=[0])

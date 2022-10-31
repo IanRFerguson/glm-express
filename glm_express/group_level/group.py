@@ -7,480 +7,561 @@ from nilearn.reporting import get_clusters_table
 import matplotlib.pyplot as plt
 from bids.layout import BIDSLayout
 
+
 ##########
 
+
 class GroupLevel:
-      """
-      Aggregates first-level contrast maps derived from the Subject class
-      """
+    """
+    Aggregates first-level contrast maps derived from the Subject class
+    """
 
-      def __init__(self, task: str, bids_root: os.path='./bids'):
-            """
-            Parameters
-                  task: str | Corresponds to functional task in your BIDS project
-                  bids_root: str | Relative path to BIDS project
-            """
+    def __init__(self, task: str, bids_root: os.path = "./bids"):
+        """
+        Parameters
+              task: str | Corresponds to functional task in your BIDS project
+              bids_root: str | Relative path to BIDS project
+        """
 
-            self.task = task                                                  # Task name from BIDS project
+        self.task = task  # Task name from BIDS project
 
-            # === BIDS paths ===
-            self.bids_root = bids_root                                        # Relative path to BIDS project
-            self._layout = BIDSLayout(self.bids_root)                         # Instantiate BIDSLayout object
-            self._all_subjects = self._layout.get_subjects()                  # List of BIDS subjects
-            self.subjects = self._iso_BIDSsubjects()                          # Subjects who have been modeled for task
-            self._all_tasks = self._layout.get_tasks()                        # List of BIDS tasks
+        # === BIDS paths ===
+        self.bids_root = bids_root  # Relative path to BIDS project
+        self._layout = BIDSLayout(self.bids_root)  # Instantiate BIDSLayout object
+        self._all_subjects = self._layout.get_subjects()  # List of BIDS subjects
+        self.subjects = (
+            self._iso_BIDSsubjects()
+        )  # Subjects who have been modeled for task
+        self._all_tasks = self._layout.get_tasks()  # List of BIDS tasks
 
-            # === Object attributes ===
-            self.output_path = self._build_output_directory                   # Relative path to output directory
-            self.all_contrasts = self._all_available_contrasts()              # Dictionary of modeled contrasts
-            self.task_file = self._taskfile_validator()                       # Dictionary of modeling parameters
+        # === Object attributes ===
+        self.output_path = (
+            self._build_output_directory
+        )  # Relative path to output directory
+        self.all_contrasts = (
+            self._all_available_contrasts()
+        )  # Dictionary of modeled contrasts
+        self.task_file = self._taskfile_validator()  # Dictionary of modeling parameters
 
+    def _taskfile_validator(self) -> dict:
+        """
+        Confirms existence of task_information.json. This file should have been created
+        in the Subject object!
 
+        Returns
+              Task-specific parameters from JSON file
+        """
 
-      def _taskfile_validator(self) -> dict:
-            """
-            Confirms existence of task_information.json. This file should have been created
-            in the Subject object!
+        if not os.path.exists("./task_information.json"):
+            raise OSError(
+                f"Task information JSON file not found ... your directory: {os.getcwd()}"
+            )
 
-            Returns
-                  Task-specific parameters from JSON file
-            """
+        with open("./task_information.json") as incoming:
+            return json.load(incoming)[self.task]
 
-            if not os.path.exists('./task_information.json'):
-                  raise OSError(f'Task information JSON file not found ... your directory: {os.getcwd()}')
+    def _build_output_directory(self) -> os.path:
+        """
+        Builds out group-level directory hierarchy for second-level modeling
 
-            with open('./task_information.json') as incoming:
-                  return json.load(incoming)[self.task]
+        Returns
+              Relative path to second-level output
+        """
 
+        # Base output directory
+        target = os.path.join(
+            self.bids_root, f"derivatives/second-level-output/task-{self.task}"
+        )
 
+        # Create directory if it doesn't exist
+        if not os.path.exists(target):
+            pathlib.Path(target).mkdir(exist_ok=True, parents=True)
 
-      def _build_output_directory(self) -> os.path:
-            """
-            Builds out group-level directory hierarchy for second-level modeling
+        # Create corrected / uncorrected subdirs for models and plots
+        for secondary in ["models", "plots"]:
+            for tertiary in ["corrected", "uncorrected"]:
+                temp = os.path.join(target, secondary, tertiary)
 
-            Returns
-                  Relative path to second-level output
-            """
+                if not os.path.exists(temp):
+                    pathlib.Path(temp).mkdir(exist_ok=True, parents=True)
 
-            # Base output directory
-            target = os.path.join(self.bids_root, f'derivatives/second-level-output/task-{self.task}')
+        return target
 
-            # Create directory if it doesn't exist
-            if not os.path.exists(target):
-                  pathlib.Path(target).mkdir(exist_ok=True, parents=True)
+    def _iso_BIDSsubjects(self) -> list:
+        """
+        Aggregates list of subjects that have undergone first-level modeling
 
-            # Create corrected / uncorrected subdirs for models and plots
-            for secondary in ['models', 'plots']:
-                  for tertiary in ['corrected', 'uncorrected']:
-                        temp = os.path.join(target, secondary, tertiary)
+        Returns
+              List of first-level modeled subjects
+        """
 
-                        if not os.path.exists(temp):
-                              pathlib.Path(temp).mkdir(exist_ok=True, parents=True)
+        # List of ALL BIDS subjects
+        bids_subjects = self._all_subjects
 
-            return target
+        # Relative path to first-level output directory
+        base_path = os.path.join(self.bids_root, "derivatives", "first-level-output")
 
+        # Empty list to append into
+        keepers = []
 
+        # Loop through all BIDS subjects
+        for sub in bids_subjects:
 
-      def _iso_BIDSsubjects(self) -> list:
-            """
-            Aggregates list of subjects that have undergone first-level modeling
+            # Keep subject if they have been modeled
+            temp_path = os.path.join(base_path, f"sub-{sub}", f"task-{self.task}")
 
-            Returns
-                  List of first-level modeled subjects
-            """
+            if os.path.exists(temp_path):
+                keepers.append(sub)
 
-            # List of ALL BIDS subjects
-            bids_subjects = self._all_subjects
+        return keepers
 
-            # Relative path to first-level output directory
-            base_path = os.path.join(self.bids_root, "derivatives", "first-level-output")
+    def get_brain_data(
+        self,
+        contrast: str,
+        smoothing: float,
+        discard_modulated: bool = True,
+        catch_duplicates: bool = True,
+    ) -> list:
+        """
+        Parameters
+              contrast: str | Contrast name derived from first-level modeling
+              smoothing: numeric or string | First-level smoothing maps of interest
+              discard_modulated: Boolean | if True, modulated maps not included implicitly
+              catch_duplicates: Boolean | if True, error raised when # of maps exceeds # of subjects
 
-            # Empty list to append into
-            keepers = []
+        Returns
+              List of relative paths to contrast maps
+        """
 
-            # Loop through all BIDS subjects
-            for sub in bids_subjects:
+        # Output directory from first-level modeling
+        derivatives = os.path.join(self.bids_root, "derivatives/first-level-output")
 
-                  # Keep subject if they have been modeled
-                  temp_path = os.path.join(base_path, f"sub-{sub}", f"task-{self.task}")
+        # User provides a numeric smoothing value
+        if type(smoothing) in [int, float]:
+            smooth_string = f"{int(smoothing)}mm"
 
-                  if os.path.exists(temp_path):
-                        keepers.append(sub)
+        # User is one step ahead of us
+        elif "mm" in str(smoothing):
+            smooth_string = smoothing
 
-            return keepers
-            
+        else:
+            smooth_string = f"{smoothing}mm"
 
+        # List of NifTi files that match given contrast
+        brain_maps = [
+            x
+            for x in glob.glob(f"{derivatives}/**/*.nii.gz", recursive=True)
+            # Identifiy maps for first-level contrast of interest
+            if contrast in x
+            # Identify maps with the appropriate first-level smoothing kernel
+            if smooth_string in x
+            # Tosses regressor maps that were tossed out in first-level
+            if "_discard" not in x
+        ]
 
-      def get_brain_data(self, contrast: str, smoothing: float, 
-                         discard_modulated: bool=True, catch_duplicates: bool=True) -> list:
-            """
-            Parameters
-                  contrast: str | Contrast name derived from first-level modeling
-                  smoothing: numeric or string | First-level smoothing maps of interest
-                  discard_modulated: Boolean | if True, modulated maps not included implicitly  
-                  catch_duplicates: Boolean | if True, error raised when # of maps exceeds # of subjects
+        """
+        If True, modulated contrasts are not included unless explicitly specificed
 
-            Returns
-                  List of relative paths to contrast maps
-            """
+        E.g.,
+        If False:   high_trust_x_target, high_trust
+        If True:    high_trust
+        """
 
-            # Output directory from first-level modeling
-            derivatives = os.path.join(self.bids_root, 'derivatives/first-level-output')
+        if discard_modulated:
+            brain_maps = [x for x in brain_maps if f"{contrast}_x_" not in x]
 
-            # User provides a numeric smoothing value
-            if type(smoothing) in [int, float]:
-                  smooth_string = f'{int(smoothing)}mm'
-
-            # User is one step ahead of us
-            elif "mm" in str(smoothing):
-                  smooth_string = smoothing
-
-            else:
-                  smooth_string = f"{smoothing}mm"
-            
-            # List of NifTi files that match given contrast
-            brain_maps = [x for x in glob.glob(f'{derivatives}/**/*.nii.gz', recursive=True) 
-                         
-                         # Identifiy maps for first-level contrast of interest
-                         if contrast in x 
-                         
-                         # Identify maps with the appropriate first-level smoothing kernel
-                         if smooth_string in x
-                         
-                         # Tosses regressor maps that were tossed out in first-level
-                         if "_discard" not in x]
-
-            """
-            If True, modulated contrasts are not included unless explicitly specificed
-
-            E.g.,
-            If False:   high_trust_x_target, high_trust
-            If True:    high_trust
-            """
-
-            if discard_modulated:
-                  brain_maps = [x for x in brain_maps if f'{contrast}_x_' not in x]
-
-            if catch_duplicates:
-                  if len(brain_maps) > len(self.subjects):
-                        raise ValueError(f"""
+        if catch_duplicates:
+            if len(brain_maps) > len(self.subjects):
+                raise ValueError(
+                    f"""
                         Please provide more specific contrast name!\n\n
                         {len(brain_maps)} first-level maps identified for {len(self.subjects)} subjects
-                        """)
+                        """
+                )
 
-            if len(brain_maps) == 0:
-                  raise ValueError(f"ERROR: No first-level maps identified for contrast {contrast}")
+        if len(brain_maps) == 0:
+            raise ValueError(
+                f"ERROR: No first-level maps identified for contrast {contrast}"
+            )
 
-            return brain_maps
+        return brain_maps
 
+    def _all_available_contrasts(self) -> dict:
+        """
+        Selects random participant, lists out their modeled conditions and contrasts,
+        and aggregates in a dictionary
 
+        Returns
+                Dictionary of conditions and contrasts
+        """
 
-      def _all_available_contrasts(self) -> dict:
-            """
-            Selects random participant, lists out their modeled conditions and contrasts,
-            and aggregates in a dictionary
+        def iso_information(x, key):
 
-            Returns
-                  Dictionary of conditions and contrasts
-            """
+            # Strips relative path information from filename
+            iso = os.path.basename(x)
 
-            def iso_information(x, key):
-                  
-                  # Strips relative path information from filename
-                  iso = os.path.basename(x)
+            # Isolate condition or contrast name directly
+            return iso.split(f"{key}-")[1].split("_smoothing")[0].strip()
 
-                  # Isolate condition or contrast name directly
-                  return iso.split(f"{key}-")[1].split("_smoothing")[0].strip()
+        # TODO: Improve this appoach to be less subjective
+        random_target = random.choice(self.subjects)
 
+        # First-level models from target subject
+        target = os.path.join(
+            self.bids_root,
+            "derivatives/first-level-output",
+            f"sub-{random_target}",
+            f"task-{self.task}/models",
+        )
 
-            # TODO: Improve this appoach to be less subjective
-            random_target = random.choice(self.subjects)
+        # List and identify all condition files
+        all_conditions = [
+            x
+            for x in glob.glob(
+                os.path.join(target, "condition-maps/**/*.nii.gz"), recursive=True
+            )
+        ]
+        conditions = sorted([iso_information(x, "condition") for x in all_conditions])
 
-            # First-level models from target subject
-            target = os.path.join(self.bids_root, 'derivatives/first-level-output',
-                                 f'sub-{random_target}', f'task-{self.task}/models')
+        # List and identify all contrast files
+        all_contrasts = [
+            x
+            for x in glob.glob(
+                os.path.join(target, "contrast-maps/**/*.nii.gz"), recursive=True
+            )
+        ]
+        contrasts = sorted([iso_information(x, "contrast") for x in all_contrasts])
 
-            # List and identify all condition files
-            all_conditions = [x for x in glob.glob(os.path.join(target, "condition-maps/**/*.nii.gz"), recursive=True)]
-            conditions = sorted([iso_information(x, "condition") for x in all_conditions])
+        # Returns dictionary of conditions and contrasts
+        return {"conditions": conditions, "contrasts": contrasts}
 
-            # List and identify all contrast files
-            all_contrasts = [x for x in glob.glob(os.path.join(target, "contrast-maps/**/*.nii.gz"), recursive=True)]
-            contrasts = sorted([iso_information(x, "contrast") for x in all_contrasts])
+    def plot_brain_mosaic(
+        self, contrast: str, smoothing: float = 8.0, save_local: bool = False
+    ):
+        """
+        Parameters
+                contrast: str | Contrast name from first-level model
+                smoothing: float | Smoothing kernel from first-level model (this is a naming convention parameter)
+                save_local: Boolean | if True, saves to second-level-output directory
+        """
 
-            # Returns dictionary of conditions and contrasts
-            return {'conditions': conditions, 'contrasts': contrasts}
+        # List of relative paths to relevant NifTi files
+        brain_maps = self.get_brain_data(contrast=contrast, smoothing=smoothing)
 
+        # E.g., 8. => '8mm
+        check_smooth = f"{int(smoothing)}mm"
 
+        # Subset of NifTi files that match given smoothing kernel
+        brain_maps = [x for x in brain_maps if check_smooth in x]
 
-      # ---- Utility functions
-      def plot_brain_mosaic(self, contrast: str, smoothing: float=8., save_local: bool=False):
-            """
-            Parameters
-                  contrast: str | Contrast name from first-level model
-                  smoothing: float | Smoothing kernel from first-level model (this is a naming convention parameter)
-                  save_local: Boolean | if True, saves to second-level-output directory
-            """
+        # === Plot brains ===
+        # Subplots rows
+        rows = int(math.ceil(len(brain_maps) / 5))
 
-            # List of relative paths to relevant NifTi files
-            brain_maps = self.get_brain_data(contrast=contrast, smoothing=smoothing)
+        # Instantiate figure cavnas
+        figure, axes = plt.subplots(nrows=rows, ncols=5, figsize=(20, 20))
 
-            # E.g., 8. => '8mm
-            check_smooth = f'{int(smoothing)}mm'
+        if rows > 1:
+            for x in range(rows):
+                for y in range(5):
+                    axes[x, y].axis("off")
 
-            # Subset of NifTi files that match given smoothing kernel
-            brain_maps = [x for x in brain_maps if check_smooth in x]
+        else:
+            for y in range(5):
+                axes[y].axis("off")
 
+        figure.suptitle(f"{contrast}_{int(smoothing)}mm", fontweight="bold")
 
-            # === Plot brains ===
-            # Subplots rows
-            rows = int(math.ceil(len(brain_maps) / 5))
+        for ix, brain in enumerate(brain_maps):
 
-            # Instantiate figure cavnas
-            figure, axes = plt.subplots(nrows=rows, ncols=5, figsize=(20,20))
+            # Parse out subject ID
+            sub_id = brain.split("/")[-1].split("_")[0].split("-")[1]
 
+            # Slightly different logic depending on the shape of the output file (see axes)
             if rows > 1:
-                  for x in range(rows):
-                        for y in range(5):
-                              axes[x,y].axis('off')
+                k = nip.plot_glass_brain(
+                    brain,
+                    threshold=3.2,
+                    display_mode="z",
+                    plot_abs=False,
+                    colorbar=False,
+                    title=sub_id,
+                    axes=axes[int(ix / 5), int(ix % 5)],
+                )
 
             else:
-                  for y in range(5):
-                        axes[y].axis('off')
+                k = nip.plot_glass_brain(
+                    brain,
+                    threshold=3.2,
+                    display_mode="z",
+                    plot_abs=False,
+                    colorbar=False,
+                    title=sub_id,
+                    axes=axes[int(ix % 5)],
+                )
 
-            figure.suptitle(f'{contrast}_{int(smoothing)}mm', fontweight='bold')
+        # Save plot locally if True
+        if save_local:
+            filename = os.path.join(
+                self.output_path,
+                "plots",
+                f"brain_mosaic_{contrast}_{int(smoothing)}mm.jpg",
+            )
+            plt.savefig(filename)
 
-            for ix, brain in enumerate(brain_maps):
+        plt.show()
 
-                  # Parse out subject ID
-                  sub_id = brain.split('/')[-1].split('_')[0].split('-')[1]
+    def make_design_matrix(self, direction: int = 1):
+        """
+        Parameters
+                direction: int | 1 or -1 (determines direction of linear contrast)
 
-                  # Slightly different logic depending on the shape of the output file (see axes)
-                  if rows > 1:
-                        k = nip.plot_glass_brain(brain, threshold=3.2, display_mode='z',
-                                                plot_abs=False, colorbar=False, title=sub_id,
-                                                axes=axes[int(ix/5), int(ix % 5)])
+        Returns
+                Pandas DataFrame object
+        """
 
-                  else:
-                        k = nip.plot_glass_brain(brain, threshold=3.2, display_mode='z',
-                                                plot_abs=False, colorbar=False, title=sub_id,
-                                                axes=axes[int(ix % 5)])
+        if direction not in [1, -1]:
+            raise ValueError(f"Direction must be 1 or -1 ... your input: {direction}")
 
-            # Save plot locally if True
-            if save_local:
-                  filename = os.path.join(self.output_path, 'plots', f'brain_mosaic_{contrast}_{int(smoothing)}mm.jpg')
-                  plt.savefig(filename)
+        # List of subject id's
+        subject_labels = self.subjects
 
-            plt.show()
+        # [1] or [-1] * length of subject set
+        design_matrix = pd.DataFrame(
+            {
+                "subject_label": subject_labels,
+                "intercept": [direction] * len(subject_labels),
+            }
+        )
 
+        try:
+            return second_level.make_second_level_design_matrix(
+                subject_labels, design_matrix
+            )
 
+        except Exception as e:
+            print(f"EXCEPTION OCURRED @ SECOND LEVEL DESIGN MATRIX: {e}")
+            print(
+                "Defaulting to generic design matrix, consider supplying your own matrix"
+            )
 
-      # ---- Modeling functions
-      def make_design_matrix(self, direction: int=1):
-            """
-            Parameters
-                  direction: int | 1 or -1 (determines direction of linear contrast)
+            dummy_matrix = pd.DataFrame({"subject_label": subject_labels})
 
-            Returns
-                  Pandas DataFrame object
-            """
+            return second_level.make_second_level_design_matrix(
+                subject_labels, dummy_matrix
+            )
 
-            if direction not in [1, -1]:
-                  raise ValueError(f'Direction must be 1 or -1 ... your input: {direction}')
+    def uncorrected_model(
+        self,
+        contrast: str,
+        sub_smoothing: float = 8.0,
+        group_smoothing: float = None,
+        direction: int = 1,
+        return_map: bool = True,
+        save_output: bool = False,
+    ):
+        """
+        Parameters
+              contrast: str | First-level contrast
+              sub_smoothing: float | Smoothing kernel used in first-level models
+              group_smoothing: float | Smoothing kernel to be applied to second-level model
+              direction: int | 1 or -1, determines direction of linear contrast
 
-            # List of subject id's
-            subject_labels = self.subjects
-            
-            # [1] or [-1] * length of subject set
-            design_matrix = pd.DataFrame({'subject_label': subject_labels,
-                                           'intercept': [direction] * len(subject_labels)})
+        Returns
+              if return_map: nibabel.Image object
+        """
 
-            try:
-                  return second_level.make_second_level_design_matrix(
-                        subject_labels, 
-                        design_matrix
-                  )
+        if direction not in [1, -1]:
+            raise ValueError(f"Direction must be 1 or -1 ... your input: {direction}")
 
-            except Exception as e:
-                  print(f"EXCEPTION OCURRED @ SECOND LEVEL DESIGN MATRIX: {e}")
-                  print("Defaulting to generic design matrix, consider supplying your own matrix")
+        # List of brain maps matching contrast and first-level smoothing kernel
+        brain_data = self.get_brain_data(contrast=contrast, smoothing=sub_smoothing)
 
-                  dummy_matrix = pd.DataFrame({'subject_label': subject_labels})
+        # Make second-level design matrix
+        # design_matrix = self.make_design_matrix(direction=direction)
+        design_matrix = pd.DataFrame([direction] * len(brain_data))
 
-                  return second_level.make_second_level_design_matrix(
-                        subject_labels,
-                        dummy_matrix
-                  )
+        print(
+            f"\n ** {len(brain_data)} subjects in {contrast.upper()} group-level model **\n"
+        )
 
+        # Instantiate SecondLevelModel object
+        glm = second_level.SecondLevelModel(smoothing_fwhm=group_smoothing)
 
+        # Fit brain data and
+        model = glm.fit(brain_data, design_matrix=design_matrix)
 
-      def uncorrected_model(self, contrast: str, sub_smoothing: float=8., group_smoothing: float=None, 
-                            direction: int=1, return_map: bool=True, save_output: bool=False):
-            """
-            Parameters
-                  contrast: str | First-level contrast
-                  sub_smoothing: float | Smoothing kernel used in first-level models
-                  group_smoothing: float | Smoothing kernel to be applied to second-level model
-                  direction: int | 1 or -1, determines direction of linear contrast
+        # Run linear contrast on NifTi Image
+        contrasted_model = model.compute_contrast(output_type="z_score")
 
-            Returns
-                  if return_map: nibabel.Image object
-            """
+        # Save local NifTi if True
+        if save_output:
 
-            if direction not in [1, -1]:
-                  raise ValueError(f'Direction must be 1 or -1 ... your input: {direction}')
+            if group_smoothing is not None:
 
-            # List of brain maps matching contrast and first-level smoothing kernel
+                # E.g., 8. => 8mm
+                smooth_string = f"{int(group_smoothing)}mm"
+
+                # Define output path for NifTi beta map
+                output_path = os.path.join(
+                    self.output_path,
+                    "models",
+                    f"second_level_contrast-{contrast}_smoothing-{smooth_string}.nii.gz",
+                )
+
+                # Save locally
+                contrasted_model.to_filename(output_path)
+
+            else:
+                # Define output path for NifTi beta map
+                output_path = os.path.join(
+                    self.output_path,
+                    "models",
+                    f"second_level_contrast-{contrast}_unsmoothed.nii.gz",
+                )
+
+                # Save locally
+                contrasted_model.to_filename(output_path)
+
+        if return_map:
+            return contrasted_model
+
+    def corrected_model(
+        self,
+        contrast: str,
+        existing_model: second_level.SecondLevelModel = None,
+        height_control: str = "fdr",
+        alpha: float = 0.05,
+        plot_style: str = "ortho",
+        cluster_threshold: int = None,
+        sub_smoothing: float = 8.0,
+        group_smoothing: float = None,
+        direction: int = 1,
+        return_map: bool = True,
+        save_output: bool = False,
+    ):
+        """
+        Parameters
+              contrast: str | Valid contrast from first level model
+              existing_model: SecondLevelModel object | This allows you to feed in uncorrected stats image
+              height_control: str | Must be in ['fpr', 'fdr', 'bonferroni']
+              alpha: float | P-value cutoff parameter for thresholding
+              plot_style: str | Must be in ['ortho', 'glass']
+              cluster_threshold: int | Only required for FPR height control models
+              sub_smoothing: float | Smoothing from first-level maps
+              group_smoothing: float | if not None, applies smoothing kernel to group-level map
+              direction: int | Must be in [1, -1]
+              reutrn_map: Boolean | if True, stats image is returned
+              save_output: Boolean | if True, plot is saved to output directory
+
+        Returns
+              nibabel.Image object (if return_map)
+        """
+
+        # Catch any erroneous user inputs
+        if height_control not in ["fdr", "fpr", "bonferroni"]:
+            raise ValueError(
+                f"Invalid height control parameter {height_control} supplied..."
+            )
+
+        if plot_style not in ["ortho", "glass"]:
+            raise ValueError(f"Invalid plot_style parameter {plot_style} supplied...")
+
+        if direction not in [1, -1]:
+            raise ValueError(f"Invalid contrast direction {direction} supplied...")
+
+        # Fit model if none supplied
+        if existing_model == None:
+
+            # List of NifTi files
             brain_data = self.get_brain_data(contrast=contrast, smoothing=sub_smoothing)
 
-            # Make second-level design matrix
-            #design_matrix = self.make_design_matrix(direction=direction)
-            design_matrix = pd.DataFrame([direction] * len(brain_data))
+            # Build design matrix
+            design_matrix = self.make_design_matrix(direction=direction)
 
-            print(f'\n ** {len(brain_data)} subjects in {contrast.upper()} group-level model **\n')
-
-            # Instantiate SecondLevelModel object
+            # Instantiate SecondLevelModel
             glm = second_level.SecondLevelModel(smoothing_fwhm=group_smoothing)
 
-            # Fit brain data and 
+            # Fit to NifTi data
             model = glm.fit(brain_data, design_matrix=design_matrix)
 
-            # Run linear contrast on NifTi Image
-            contrasted_model = model.compute_contrast(output_type='z_score')
+        else:
+            model = existing_model
 
-            # Save local NifTi if True
-            if save_output:
+        if height_control != "fpr":
+            t_map, t_thresh = threshold_stats_img(
+                model, alpha=alpha, height_control=height_control
+            )
 
-                  if group_smoothing is not None:
-                        
-                        # E.g., 8. => 8mm
-                        smooth_string = f'{int(group_smoothing)}mm'
+        else:
+            t_map, t_thresh = threshold_stats_img(
+                model,
+                alpha=alpha,
+                height_control=height_control,
+                cluster_threshold=cluster_threshold,
+            )
 
-                        # Define output path for NifTi beta map
-                        output_path = os.path.join(self.output_path, 
-                                                  'models', 
-                                                  f'second_level_contrast-{contrast}_smoothing-{smooth_string}.nii.gz')
+        title = f"{contrast} @ {alpha}"
 
-                        # Save locally
-                        contrasted_model.to_filename(output_path)
+        if save_output:
 
-                  else:
-                        # Define output path for NifTi beta map
-                        output_path = os.path.join(self.output_path,
-                                                  'models',
-                                                  f'second_level_contrast-{contrast}_unsmoothed.nii.gz')
+            # Output name for plot
+            plot_filename = os.path.join(
+                self.output_path, "plots", f"{contrast}_corrected.jpg"
+            )
 
-                        # Save locally
-                        contrasted_model.to_filename(output_path)
+            # In development
+            # model_filename = os.path.join(self.output_path, 'models', f'{contrast}_corrected.nii.gz')
 
-            if return_map:
-                  return contrasted_model
+            if plot_style == "ortho":
+                nip.plot_stat_map(
+                    t_map,
+                    threshold=t_thresh,
+                    title=title,
+                    display_mode="ortho",
+                    output_file=plot_filename,
+                )
 
+            elif plot_style == "glass":
+                nip.plot_glass_brain(
+                    t_map,
+                    threshold=t_thresh,
+                    display_mode="lyrz",
+                    plot_abs=False,
+                    colorbar=False,
+                    title=title,
+                    output_file=plot_filename,
+                )
 
+        if return_map:
+            return t_map
 
-      def corrected_model(self, contrast:str, existing_model: second_level.SecondLevelModel=None, 
-                          height_control: str='fdr', alpha: float=.05, plot_style: str='ortho', 
-                          cluster_threshold: int=None, sub_smoothing: float=8., group_smoothing: float=None, 
-                          direction: int=1, return_map: bool=True, save_output: bool=False):
-            """
-            Parameters
-                  contrast: str | Valid contrast from first level model 
-                  existing_model: SecondLevelModel object | This allows you to feed in uncorrected stats image
-                  height_control: str | Must be in ['fpr', 'fdr', 'bonferroni']
-                  alpha: float | P-value cutoff parameter for thresholding
-                  plot_style: str | Must be in ['ortho', 'glass']
-                  cluster_threshold: int | Only required for FPR height control models
-                  sub_smoothing: float | Smoothing from first-level maps
-                  group_smoothing: float | if not None, applies smoothing kernel to group-level map
-                  direction: int | Must be in [1, -1]
-                  reutrn_map: Boolean | if True, stats image is returned
-                  save_output: Boolean | if True, plot is saved to output directory
+    def get_clusters(
+        self,
+        stat_map,
+        stat_thresh: float,
+        cluster: int = None,
+        two_sided: bool = False,
+        min_distance: float = 8.0,
+    ):
+        """
+        This function is a wrapper for a similar function in Nilearn's reporting module
 
-            Returns
-                  nibabel.Image object (if return_map)
-            """
+        Parameters
+              stat_map: Corrected NifTi image
+              stat_thresh: float | Should be identicial scale to stat_map param
+              cluster: int or None | Cluster size threshold for FDR
+              two_sided: Boolean | if True, employs two-sided evaluation of stat clusters
+              min_distance: float | Minimum distance between subpeaks in millimeters
 
-            # Catch any erroneous user inputs
-            if height_control not in ['fdr', 'fpr', 'bonferroni']:
-                  raise ValueError(f'Invalid height control parameter {height_control} supplied...')
+        Returns
+              Cluster table (XYZ) for given NifTi stat map in Pandas DataFrame form
+        """
 
-            if plot_style not in ['ortho', 'glass']:
-                  raise ValueError(f'Invalid plot_style parameter {plot_style} supplied...')
-
-            if direction not in [1, -1]:
-                  raise ValueError(f'Invalid contrast direction {direction} supplied...')
-
-
-            # Fit model if none supplied
-            if existing_model == None:
-
-                  # List of NifTi files
-                  brain_data = self.get_brain_data(contrast=contrast, smoothing=sub_smoothing)
-                  
-                  # Build design matrix
-                  design_matrix = self.make_design_matrix(direction=direction)
-                  
-                  # Instantiate SecondLevelModel
-                  glm = second_level.SecondLevelModel(smoothing_fwhm=group_smoothing)
-                  
-                  # Fit to NifTi data
-                  model = glm.fit(brain_data, design_matrix=design_matrix)
-
-            else:
-                  model = existing_model
-
-
-            # === Modeling parameters ===
-            if height_control != 'fpr':
-                  t_map, t_thresh = threshold_stats_img(model, alpha=alpha, 
-                                                       height_control=height_control)
-            
-            else:
-                  t_map, t_thresh = threshold_stats_img(model, alpha=alpha,
-                                                      height_control=height_control,
-                                                      cluster_threshold=cluster_threshold)
-
-
-            title = f'{contrast} @ {alpha}'
-
-            if save_output:
-                  
-                  # Output name for plot
-                  plot_filename = os.path.join(self.output_path, 'plots', f'{contrast}_corrected.jpg')
-                  
-                  # In development
-                  # model_filename = os.path.join(self.output_path, 'models', f'{contrast}_corrected.nii.gz')
-
-                  if plot_style == 'ortho':
-                        nip.plot_stat_map(t_map, threshold=t_thresh, title=title,
-                                          display_mode='ortho', output_file=plot_filename)
-
-                  elif plot_style == 'glass':
-                        nip.plot_glass_brain(t_map, threshold=t_thresh, display_mode='lyrz',
-                                             plot_abs=False, colorbar=False, title=title,
-                                             output_file=plot_filename)
-
-            if return_map:
-                  return t_map
-
-
-
-      def get_clusters(self, stat_map, stat_thresh: float, cluster: int=None, 
-                       two_sided: bool=False, min_distance: float=8.):
-            """
-            This function is a wrapper for a similar function in Nilearn's reporting module
-
-            Parameters
-                  stat_map: Corrected NifTi image
-                  stat_thresh: float | Should be identicial scale to stat_map param
-                  cluster: int or None | Cluster size threshold for FDR
-                  two_sided: Boolean | if True, employs two-sided evaluation of stat clusters
-                  min_distance: float | Minimum distance between subpeaks in millimeters
-
-            Returns
-                  Cluster table (XYZ) for given NifTi stat map in Pandas DataFrame form
-            """
-
-            return get_clusters_table(stat_img=stat_map, stat_threshold=stat_thresh,
-                                      cluster_threshold=cluster, two_sided=two_sided,
-                                      min_distance=min_distance)
+        return get_clusters_table(
+            stat_img=stat_map,
+            stat_threshold=stat_thresh,
+            cluster_threshold=cluster,
+            two_sided=two_sided,
+            min_distance=min_distance,
+        )
