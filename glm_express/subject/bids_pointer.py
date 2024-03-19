@@ -7,7 +7,6 @@ import shutil
 
 import pandas as pd
 from bids import BIDSLayout
-from torch import full
 
 from ..utils.general_utils import build_dataset_description
 from ..utils.wrapper import build_task_info

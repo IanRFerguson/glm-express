@@ -1,4 +1,3 @@
-#!/bin/python3
 import glob
 import json
 import os
@@ -8,16 +7,14 @@ import numpy as np
 import pandas as pd
 from bids import BIDSLayout
 
-from ..build_info.build_task_info import build_dataset_description, build_task_info
+from ..utils.build import build_task_info, build_dataset_description
 
 ##########
 
 
 class Build_RS:
     """
-    About Build_RS
-
-    Build_RS provides the skeleton for the RestingState object
+    Provides the skeleton for the RestingState object
     in GLM Express. It points to subject BIDS data (raw and preprocessed),
     validates the task_information.json file, and builds out the BIDS container
     that is essential to all other GLMX operations

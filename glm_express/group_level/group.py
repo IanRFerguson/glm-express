@@ -1,4 +1,3 @@
-#!/bin/python3
 import glob
 import json
 import math
