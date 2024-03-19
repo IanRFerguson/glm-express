@@ -1,16 +1,18 @@
 #!/bin/python3
-import argparse, os
-from .wrapper import build_task_info
-from .general_utils import build_dataset_description
+import argparse
+import os
+
 from bids import BIDSLayout
 
+from .general_utils import build_dataset_description
+from .wrapper import build_task_info
 
 ##########
 
 
 def get_args():
     """
-    Provides infrastructre to handle user-provided 
+    Provides infrastructre to handle user-provided
     command line arguments
     """
 
@@ -20,21 +22,19 @@ def get_args():
 
     #
     parser.add_argument(
-        "--path", type=str,
-        required=True,
-        help="Path to BIDS project, e.g., `./bids/`"
+        "--path", type=str, required=True, help="Path to BIDS project, e.g., `./bids/`"
     )
 
     #
     parser.add_argument(
-        "--validate", type="str",
+        "--validate",
+        type="str",
         required=False,
         default="N",
-        help="Validate BIDS project (Y/N)"
+        help="Validate BIDS project (Y/N)",
     )
 
     return parser.parse_args()
-
 
 
 def glmx_setup():
@@ -54,14 +54,11 @@ def glmx_setup():
         except Exception as e:
             print("\n** BIDS VALIDATION FAILED **\n")
             raise e
-    
+
     ######
 
     # Build task information.json
-    build_task_info(
-        bids_root=path_,
-        verbose=True
-    )
+    build_task_info(bids_root=path_, verbose=True)
 
     ######
 
