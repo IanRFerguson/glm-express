@@ -6,6 +6,8 @@ import glob
 import os
 
 from bids import BIDSLayout
+from glmx.utilities.logger import logger
+import pandas as pd
 from typing import Optional
 
 #####
@@ -25,6 +27,8 @@ class Subject_Analytics:
         self.task_object = task_object
         self.bids_project_instance = bids_project_instance
         self.full_data = full_data
+
+        self.container = self._build_glmx_container()
 
     def _isolate_files(
         self,
@@ -76,11 +80,23 @@ class Subject_Analytics:
         return [x for x in glob_pattern if self.task in x if filter_string in x]
 
     def _derive_functional_runs(self) -> int:
-        if self._raw_bold_images:
-            return len(self._raw_bold_images)
+        """
+        Gets number of functional runs for the current task
+        """
 
-        # TODO - Add logging
-        return 0
+        all_scanner_files = [
+            x
+            for x in glob.glob(
+                os.path.join(self.bids_project_instance.root, "**/*.nii.gz")
+            )
+            if self.subject_id in x
+            if self.task in x
+        ]
+
+        # FIXME - Yikes!
+        runs_ = set([x.split("run-")[1].split("_")[0] for x in all_scanner_files])
+
+        return len(runs_)
 
     def _initialize_glmx_container(self, run_values: Optional[list] = None) -> dict:
         """
@@ -129,10 +145,18 @@ class Subject_Analytics:
         confound_files = self._isolate_files()
 
         for run_ in container.keys():
-            current_raw_file = ""
-            current_event_file = ""
-            current_preprocessed_file = ""
-            current_confound_file = ""
+            current_raw_file = self._isolate_file_per_run(
+                run_value=run_, file_array=raw_files
+            )
+            current_event_file = self._isolate_file_per_run(
+                run_value=run_, file_array=events_files
+            )
+            current_preprocessed_file = self._isolate_file_per_run(
+                run_value=run_, file_array=preprocessed_files
+            )
+            current_confound_file = self._isolate_file_per_run(
+                run_value=run_, file_array=confound_files
+            )
 
             container[run_] = {
                 "raw_bold_image": current_raw_file,
@@ -141,18 +165,94 @@ class Subject_Analytics:
                 "confound_file": current_confound_file,
             }
 
-            container["all_raw_images"].append(current_raw_file)
-            container["all_events"].append(current_event_file)
-            container["all_preprocessed_images"].append(current_preprocessed_file)
-            container["all_confounds"].append(current_confound_file)
+            container["all_raw_images"].extend(current_raw_file)
+            container["all_events"].extend(current_event_file)
+            container["all_preprocessed_images"].extend(current_preprocessed_file)
+            container["all_confounds"].extend(current_confound_file)
+
+        return container
+
+    def _isolate_file_per_run(self, run_value: str, file_array: list):
+        """
+        Attempts to pull filename out of list
+        """
+
+        matching_files = [x for x in file_array if run_value in x]
+
+        if len(matching_files) > 1:
+            logger.warning(
+                f"{len(matching_files)} files found for sub-{self.subject_id} {run_value}"
+            )
+        elif len(matching_files) == 0:
+            logger.error(f"No files matched for sub-{self.subject_id} {run_value}")
+
+        return matching_files
 
     ###
 
-    def load_subject_events_file(self, run: Optional[str] = None):
-        pass
+    def load_subject_events_file(
+        self, run: Optional[str] = None, csv_delimiter: str = "\t"
+    ) -> pd.DataFrame:
+        """
+        Loads subject's events files (or, optionally, a run-specific file)
 
-    def load_subject_confound_file(self, run: Optional[str] = None):
-        pass
+        Args:
+            run: Should be provided in `run-{{ value }}` format. See `self.container.keys()` for reference
+            csv_delimiter: Standard delimiter value, defaults to tab-delimiter
+
+        Returns:
+            Pandas Dataframe representing relevant event information
+        """
+
+        if run:
+            run_values = [run]
+        else:
+            run_values = [x for x in self.container.keys() if "run" in x]
+
+        files = []
+        for val_ in run_values:
+            temp_event_file = pd.read_csv(
+                self.container[val_]["event_file"], sep=csv_delimiter
+            )
+
+            if "run" not in temp_event_file.columns:
+                temp_event_file["run"] = [val_] * len(temp_event_file)
+
+            files.append(temp_event_file)
+
+        return pd.concat(files)
+
+    def load_subject_confound_file(
+        self, run: Optional[str] = None, csv_delimiter: str = "\t"
+    ):
+        """
+         Loads subject's confounds files (or, optionally, a run-specific file)
+
+        Args:
+            run: Should be provided in `run-{{ value }}` format. See `self.container.keys()` for reference
+            csv_delimiter: Standard delimiter value, defaults to tab-delimiter
+
+        Returns:
+            Pandas Dataframe representing relevant confound information
+        """
+
+        if run:
+            run_values = [run]
+        else:
+            run_values = [x for x in self.container.keys() if "run" in x]
+
+        files = []
+        for val_ in run_values:
+            temp_event_file = pd.read_csv(
+                self.container[val_]["confound_file"], sep=csv_delimiter
+            )
+
+            if "run" not in temp_event_file.columns:
+                temp_event_file["run"] = [val_] * len(temp_event_file)
+
+            files.append(temp_event_file)
+
+        return pd.concat(files)
 
     ###
 
